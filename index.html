@@ -1,2153 +1,365 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>도서관 봉사단 관리시스템</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- QRCode.js 라이브러리 CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e',
-              600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d'
-            }
-          }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초등학교 1학년 맞춤형 스도쿠 학습지</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 가독성이 좋고 친근한 느낌의 Noto Sans KR 폰트 로드 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
         }
-      }
-    }
-  </script>
-  <style>
-    /* 미니멀 스크롤바 */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #f8fafc; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    
-    /* 플로팅 시트 독 트랜지션 */
-    .sheet-dock-transition {
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), height 0.25s ease;
-    }
 
-    /* A4 1장 전용 인쇄 표준 스타일 */
-    @media print {
-      body { background: #ffffff !important; color: #000000 !important; padding: 0 !important; margin: 0 !important; }
-      body * { visibility: hidden; }
-      #printableArea, #printableArea * { visibility: visible; }
-      #printableArea {
-        position: absolute; left: 0; top: 0; width: 100%; display: block !important;
-        background: #ffffff !important; padding: 0 !important; margin: 0 !important;
-      }
-      @page {
-        size: A4 portrait;
-        margin: 12mm;
-      }
-      .no-print { display: none !important; }
-    }
-  </style>
+        /* 스도쿠 9x9 그리드 스타일 */
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            border: 3px solid #1e293b;
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 460px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 정답용 미니 그리드 */
+        .sudoku-grid-mini {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            border: 2px solid #334155;
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 240px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+        }
+
+        /* 개별 셀 스타일 */
+        .sudoku-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #cbd5e1;
+            border-bottom: 1px solid #cbd5e1;
+            font-weight: 700;
+            user-select: none;
+        }
+
+        .sudoku-grid .sudoku-cell {
+            font-size: 1.5rem;
+        }
+
+        .sudoku-grid-mini .sudoku-cell {
+            font-size: 0.85rem;
+        }
+
+        /* 3x3 박스 굵은 선 처리 (세로선) */
+        .sudoku-cell:nth-child(3n) {
+            border-right: 3px solid #1e293b;
+        }
+        .sudoku-grid-mini .sudoku-cell:nth-child(3n) {
+            border-right: 2px solid #334155;
+        }
+        .sudoku-cell:nth-child(9n) {
+            border-right: none;
+        }
+
+        /* 3x3 박스 굵은 선 처리 (가로선) */
+        .sudoku-row-border-bottom {
+            border-bottom: 3px solid #1e293b !important;
+        }
+        .sudoku-grid-mini .sudoku-row-border-bottom {
+            border-bottom: 2px solid #334155 !important;
+        }
+        .sudoku-row-last {
+            border-bottom: none !important;
+        }
+
+        /* 정답 칸 강조 스타일 */
+        .answer-highlight {
+            color: #dc2626;
+            background-color: #fef2f2;
+            font-weight: 900;
+        }
+
+        /* 인쇄 및 PDF 저장 전용 스타일 */
+        @media print {
+            body {
+                background-color: #ffffff !important;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-container {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 10mm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+            /* 배경색 인쇄 강제 적용 */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+        }
+    </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
+<body class="min-h-screen flex flex-col items-center py-6 px-4">
 
-  <!-- ========================================== -->
-  <!-- 🚨 긴급 대타 사이렌 알림 배너 -->
-  <!-- ========================================== -->
-  <div id="emergencySirenBanner" class="hidden no-print bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg border-b border-red-500 px-4 py-2.5 transition-all">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm">
-      <div class="flex items-center gap-2.5 font-bold">
-        <span class="flex h-3 w-3 relative">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-300 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-yellow-400"></span>
-        </span>
-        <span class="bg-yellow-400 text-red-900 text-xs px-2 py-0.5 rounded font-black tracking-wide uppercase">긴급 대타</span>
-        <span id="emergencyBannerText" class="truncate">긴급 대타 봉사위원님을 모십니다!</span>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button onclick="copyKakaoEmergencyText()" class="px-2.5 py-1 bg-red-800/80 hover:bg-red-900 rounded-lg text-xs font-semibold text-yellow-200 transition-all">
-          📲 카톡 공지 복사
-        </button>
-        <button id="emergencyDismissBtn" onclick="toggleEmergencyBroadcast(false)" class="hidden px-2 py-1 bg-red-900/60 hover:bg-red-900 text-xs rounded text-slate-200">
-          ✕ 해제
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 🌟 상단 메인 헤더 바 -->
-  <!-- ========================================== -->
-  <header class="no-print bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-3 cursor-pointer" onclick="switchTab('today')">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 text-white flex items-center justify-center shadow-md shadow-brand-500/20 shrink-0">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 id="headerLibraryName" class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-tight">도서관 봉사단 관리시스템</h1>
-            <span id="syncStatusBadge" onclick="handleSyncBadgeClick()" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 cursor-pointer hover:bg-slate-200 transition-colors">
-              ⚪ 로컬 모드
-            </span>
-          </div>
-          <p id="todayDateSubtitle" class="text-xs text-slate-500 font-medium">로딩 중...</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <button onclick="toggleSheetDock()" title="구글 시트 바로보기" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all">
-          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-          <span class="hidden md:inline">구글 시트</span>
-        </button>
-
-        <button onclick="openModal('qrModal'); generateQrCode(getAppAccessUrl());" title="학교 전용 접속 QR코드" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all">
-          <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-          <span class="hidden md:inline">접속 QR</span>
-        </button>
-
-        <button onclick="openModal('manualModal')" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all">
-          <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-          <span class="hidden md:inline">사용설명서</span>
-        </button>
-
-        <button id="adminAuthBtn" onclick="handleAdminAuthButtonClick()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-all">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-          <span id="adminAuthBtnText">관리자</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- 네비게이션 탭 바 -->
-    <div class="border-t border-slate-100 bg-slate-50/70">
-      <div class="max-w-6xl mx-auto px-4 flex items-center overflow-x-auto no-scrollbar gap-1 text-sm font-semibold">
-        <button id="nav-today" onclick="switchTab('today')" class="py-2.5 px-3 border-b-2 border-brand-600 text-brand-700 flex items-center gap-1.5 whitespace-nowrap">
-          <span>📅</span> 당일 현황
-        </button>
-        <button id="nav-calendar" onclick="switchTab('calendar')" class="py-2.5 px-3 border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center gap-1.5 whitespace-nowrap">
-          <span>📆</span> 월별 캘린더
-        </button>
-        <button id="nav-roster" onclick="switchTab('roster')" class="py-2.5 px-3 border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center gap-1.5 whitespace-nowrap">
-          <span>📋</span> 상세 순번표
-        </button>
-        <button id="nav-mysettings" onclick="switchTab('mysettings')" class="py-2.5 px-3 border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center gap-1.5 whitespace-nowrap">
-          <span>👤</span> 내 설정
-        </button>
-        <button id="nav-adminsettings" onclick="switchTab('adminsettings')" class="py-2.5 px-3 border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center gap-1.5 whitespace-nowrap">
-          <span>⚙️</span> 도서관 설정
-          <span id="adminLockBadge" class="w-2 h-2 rounded-full bg-amber-500"></span>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- ========================================== -->
-  <!-- 📌 메인 컨텐츠 영역 -->
-  <!-- ========================================== -->
-  <main class="no-print max-w-6xl mx-auto px-4 py-6 w-full flex-1">
-
-    <!-- 빈 상태 알림 카드 -->
-    <div id="emptyNoticeCard" class="hidden mb-6 p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-sky-50 border border-emerald-200 shadow-sm">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2">
-            <span>🌱</span> 도서관 봉사시스템이 준비되었습니다!
-          </h3>
-          <p class="text-xs sm:text-sm text-slate-600 mt-1">
-            아직 등록된 봉사자 순번이 없습니다. 관리자 모드로 로그인하여 구글 시트를 연동하거나 기본 탭을 구성해 주세요.
-          </p>
-        </div>
-        <button onclick="openModal('manualModal'); switchManualTab('school');" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition-all shrink-0">
-          🏫 새 학교 3분 개설 안내
-        </button>
-      </div>
-    </div>
-
-    <!-- 👤 내 봉사일 축하 배너 -->
-    <div id="myDutyAlertBanner" class="hidden mb-6 p-4 rounded-2xl bg-gradient-to-r from-brand-600 to-emerald-700 text-white shadow-md flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="text-2xl">🎉</div>
-        <div>
-          <h4 class="font-bold text-sm sm:text-base"><span id="myDutyNameText">봉사위원</span>님, 오늘은 도서관 활동일입니다!</h4>
-          <p class="text-xs text-brand-100 mt-0.5">아이들의 꿈을 키워주시는 따뜻한 봉사에 감사드립니다. 행복한 시간 되세요!</p>
-        </div>
-      </div>
-      <button onclick="downloadMyIcsCalendar()" class="px-3 py-1.5 bg-white text-emerald-800 rounded-lg text-xs font-bold shadow hover:bg-emerald-50 shrink-0">
-        알람 확인
-      </button>
-    </div>
-
-    <!-- 1. [당일 현황] -->
-    <section id="tabContent-today" class="space-y-6">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+    <!-- 상단 컨트롤 패널 (인쇄 시 숨김) -->
+    <div class="no-print w-full max-w-2xl bg-white rounded-2xl shadow-md p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 border border-gray-200">
         <div class="flex items-center gap-2">
-          <button onclick="navigateTodayDate(-1)" class="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600" title="이전 날짜">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-          </button>
-          <button onclick="navigateTodayDate(0)" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700">
-            오늘
-          </button>
-          <button onclick="navigateTodayDate(1)" class="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600" title="다음 날짜">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          </button>
-          <div class="ml-2 flex items-center gap-2">
-            <span id="currentViewDateText" class="font-extrabold text-slate-900 text-base sm:text-lg">2026-10-30</span>
-            <span id="currentViewDayBadge" class="px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-700">금요일</span>
-            <span id="currentViewWeekCycleBadge" class="px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800">1주차</span>
-          </div>
+            <span class="text-2xl">🧩</span>
+            <div>
+                <h1 class="font-bold text-gray-800 text-lg">1학년 스도쿠 PDF 생성기</h1>
+                <p class="text-xs text-gray-500">버튼을 눌러 새 문제를 만들거나 PDF로 저장하세요.</p>
+            </div>
         </div>
-
-        <div class="flex items-center gap-2">
-          <button onclick="shareKakaoTodaySchedule()" class="px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 transition-all">
-            <span>💬</span> 카톡 공유
-          </button>
-          <!-- A4 일일 일지 원클릭 인쇄 버튼 -->
-          <button onclick="printDailyLog()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1 shadow transition-all">
-            <span>🖨️</span> A4 일지 1장 출력
-          </button>
+        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <button onclick="generateNewWorksheet()" class="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-4 rounded-xl shadow transition duration-150 flex items-center justify-center gap-1.5 text-sm cursor-pointer">
+                <span>🔄</span> 새 문제 만들기
+            </button>
+            <button onclick="saveAsPDF()" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-xl shadow transition duration-150 flex items-center justify-center gap-1.5 text-sm cursor-pointer">
+                <span>📄</span> PDF 저장 / 인쇄
+            </button>
         </div>
-      </div>
+    </div>
 
-      <div id="todaySlotsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-
-      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
-        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5 mb-2">
-          <span>📌</span> 도서관 공지 및 활동 메모
-        </h3>
-        <p id="noticeMemoContent" class="text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed">
-          오늘도 우리 아이들을 위해 따뜻한 사랑으로 함께해 주시는 도서관 봉사위원님들께 진심으로 감사드립니다. 활동 중 문의사항이 있으시면 언제든 도서관 담당자에게 말씀해 주세요.
-        </p>
-      </div>
-    </section>
-
-    <!-- 2. [월별 캘린더] -->
-    <section id="tabContent-calendar" class="hidden space-y-6">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <button onclick="changeCalendarMonth(-1)" class="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-          </button>
-          <h2 id="calendarMonthTitle" class="font-black text-slate-900 text-lg sm:text-xl">2026년 10월</h2>
-          <button onclick="changeCalendarMonth(1)" class="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          </button>
-          <button onclick="resetCalendarToCurrentMonth()" class="px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100">
-            이번달
-          </button>
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-200">
-        <span class="font-bold text-slate-700 mr-1">주차 안내:</span>
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">● 1주차</span>
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">● 2주차</span>
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">● 3주차</span>
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">● 4주차</span>
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">● 휴관/공휴일</span>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-bold py-2.5 text-slate-600">
-          <div class="text-rose-600">일 (휴관)</div>
-          <div>월</div><div>화</div><div>수</div><div>목</div><div>금</div>
-          <div class="text-sky-600">토 (휴관)</div>
-        </div>
-        <div id="calendarGridBody" class="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-100 text-xs"></div>
-      </div>
-    </section>
-
-    <!-- 3. [상세 순번표] -->
-    <section id="tabContent-roster" class="hidden space-y-6">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+    <!-- 안내 메시지 박스 (브라우저 인쇄 안내용) -->
+    <div id="infoBanner" class="no-print w-full max-w-2xl bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-xl mb-6 text-sm flex items-start gap-2.5">
+        <span class="text-lg leading-none">💡</span>
         <div>
-          <h3 class="font-extrabold text-slate-900 text-base">도서관 정규 봉사 순번표</h3>
-          <p class="text-xs text-slate-500 mt-0.5">운영 주기에 따라 번갈아 활동하는 공식 봉사 배정표입니다.</p>
+            <strong>PDF 저장 방법:</strong> 위쪽의 파란색 <b>[PDF 저장 / 인쇄]</b> 버튼을 누른 뒤, 인쇄 창에서 대상을 <b>'PDF로 저장'</b>으로 선택하시면 A4 용지 크기의 깔끔한 학습지 파일이 만들어집니다.
         </div>
-        <button onclick="downloadMyIcsCalendar()" class="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow flex items-center gap-1.5 transition-all">
-          <span>📅</span> 내 스마트폰 캘린더 알람 등록 (.ics)
-        </button>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-xs sm:text-sm">
-            <thead>
-              <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                <th class="py-3 px-4 text-center w-16">순번</th>
-                <th class="py-3 px-3 text-center w-20">주차</th>
-                <th class="py-3 px-3 text-center w-20">요일</th>
-                <th class="py-3 px-4 w-32">시간대</th>
-                <th class="py-3 px-4">봉사위원 1 (기본)</th>
-                <th class="py-3 px-4">봉사위원 2 (동행)</th>
-              </tr>
-            </thead>
-            <tbody id="rosterTableBody" class="divide-y divide-slate-100 text-slate-700"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- 4. [내 설정] -->
-    <section id="tabContent-mysettings" class="hidden space-y-6">
-      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-5">
-        <div>
-          <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2">
-            <span>👤</span> 봉사위원 내 정보 및 맞춤 알람 설정
-          </h3>
-          <p class="text-xs text-slate-500 mt-1">
-            봉사위원님의 성함을 등록해 두시면, 앱 방문 시 본인의 활동일이 첫 화면에 자동으로 강조됩니다.
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-            <label class="block text-xs font-bold text-slate-700">내 이름 등록 (자동 기억)</label>
-            <div class="flex gap-2">
-              <input type="text" id="myVolunteerNameInput" placeholder="예: 김도서" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none">
-              <button onclick="saveMyVolunteerName()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shrink-0">
-                저장
-              </button>
-            </div>
-            <p class="text-[11px] text-slate-500">※ 등록된 이름은 브라우저에 안전하게 보관됩니다.</p>
-          </div>
-
-          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-            <label class="block text-xs font-bold text-slate-700">스마트폰 캘린더 알람 옵션</label>
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                <input type="checkbox" id="alarmEveToggle" onchange="saveAlarmPreferences()" checked class="rounded text-brand-600 focus:ring-brand-500">
-                <span>활동 전날 저녁 8시 사전 알림 설정</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                <input type="checkbox" id="alarmDayToggle" onchange="saveAlarmPreferences()" checked class="rounded text-brand-600 focus:ring-brand-500">
-                <span>활동 당일 1시간 전 최종 알림 설정</span>
-              </label>
-            </div>
-            <button onclick="downloadMyIcsCalendar()" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
-              <span>📅</span> 내 스마트폰 캘린더에 일정 등록하기 (.ics)
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 5. [도서관 설정] -->
-    <section id="tabContent-adminsettings" class="hidden space-y-6">
-      <div id="adminLockedNotice" class="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm space-y-4">
-        <div class="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-        </div>
-        <h3 class="font-extrabold text-slate-900 text-base">도서관 관리자 전용 공간입니다</h3>
-        <p class="text-xs text-slate-500 max-w-sm mx-auto">
-          시간표 설정, 운영 주기 변경, 봉사 실적 집계, 구글 시트 5대 탭 자동 구성, 접속 QR코드 등은 관리자 인증 후에 이용하실 수 있습니다.
-        </p>
-        <button onclick="openModal('adminLoginModal')" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow">
-          🔑 관리자 로그인하기
-        </button>
-      </div>
-
-      <div id="adminUnlockedPanel" class="hidden space-y-6">
-        <!-- 1. 기본 정보 및 보안 -->
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-          <h4 class="font-extrabold text-slate-900 text-sm border-b pb-2 flex items-center gap-2">
-            <span>🏫</span> 학교 도서관 기본 정보 및 보안
-          </h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">도서관 명칭</label>
-              <input type="text" id="cfgLibraryName" placeholder="예: 행복초 도서관" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">관리자 성함</label>
-              <input type="text" id="cfgAdminName" placeholder="예: 사서교사 홍길동" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">비밀번호 복구 이메일</label>
-              <input type="email" id="cfgAdminEmail" placeholder="admin@school.kr" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">새 관리자 비밀번호</label>
-              <input type="password" id="cfgAdminPassword" placeholder="초기값: 0000" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
-            </div>
-          </div>
-        </div>
-
-        <!-- 2. 운영 주기 및 시간대 -->
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-          <h4 class="font-extrabold text-slate-900 text-sm border-b pb-2 flex items-center gap-2">
-            <span>⏰</span> 운영 주기 및 가변 시간대 설정
-          </h4>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1 text-xs">운영 주기 선택</label>
-              <select id="cfgCycleType" class="w-full px-3 py-2 border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
-                <option value="1주">1주 단위 (매주 동일 반복)</option>
-                <option value="2주" selected>2주 단위 (격주 1·2주 교대 순환)</option>
-                <option value="1달">1달 단위 (월별 4주 순환)</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1 text-xs">기준 시작일 (1주차 기준)</label>
-              <input type="date" id="cfgCycleBaseDate" class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none">
-            </div>
-          </div>
-
-          <div class="space-y-2 pt-2">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-slate-700">봉사 시간대 목록</label>
-              <div class="flex items-center gap-1.5">
-                <button onclick="applyTimeSlotPreset('standard')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold">초등 2교대</button>
-                <button onclick="applyTimeSlotPreset('lunch')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold">점심 1교대</button>
-                <button onclick="applyTimeSlotPreset('triple')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold">3교대 풀타임</button>
-              </div>
-            </div>
-
-            <div id="timeSlotsEditorList" class="space-y-2"></div>
-            <button onclick="addNewTimeSlotRow()" class="w-full py-2 border border-dashed border-slate-300 hover:border-slate-400 rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-1 transition-colors">
-              <span>+</span> 새로운 시간대 추가
-            </button>
-          </div>
-        </div>
-
-        <!-- 3. 원클릭 4대 운영 카드 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 space-y-2.5 flex flex-col justify-between">
-            <div>
-              <h5 class="font-bold text-emerald-900 text-sm flex items-center gap-1.5"><span>⚡</span> 표준 5대 시트 생성</h5>
-              <p class="text-xs text-emerald-700 mt-1 leading-relaxed">구글 시트에 [설정], [순번], [명부], [출석기록], [매뉴얼] 5개 탭을 1초 만에 구성합니다.</p>
-            </div>
-            <button onclick="requestInitSheetStructure()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1">
-              <span>🚀</span> 지금 5개 탭 생성
-            </button>
-          </div>
-
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-200 space-y-2.5 flex flex-col justify-between">
-            <div>
-              <h5 class="font-bold text-sky-900 text-sm flex items-center gap-1.5"><span>👥</span> 봉사위원 명부 관리</h5>
-              <p class="text-xs text-sky-700 mt-1 leading-relaxed">봉사단 명단을 조회하고 새 위원을 등록하거나 연락처를 안전하게 마스킹 관리합니다.</p>
-            </div>
-            <button onclick="openModal('memberListModal'); renderMemberList();" class="w-full py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1">
-              <span>📋</span> 명부 열람 및 관리
-            </button>
-          </div>
-
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-50 border border-purple-200 space-y-2.5 flex flex-col justify-between">
-            <div>
-              <h5 class="font-bold text-purple-900 text-sm flex items-center gap-1.5"><span>📊</span> 봉사 실적 자동 집계</h5>
-              <p class="text-xs text-purple-700 mt-1 leading-relaxed">정규 봉사와 대타 참여 내역을 자동 합산하여 학기말 확인서 통계를 즉시 산출합니다.</p>
-            </div>
-            <button onclick="openModal('statsModal'); renderStatsTable();" class="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1">
-              <span>📈</span> 실적 통계표 열람
-            </button>
-          </div>
-
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 space-y-2.5 flex flex-col justify-between">
-            <div>
-              <h5 class="font-bold text-amber-900 text-sm flex items-center gap-1.5"><span>📱</span> 학교 전용 QR코드</h5>
-              <p class="text-xs text-amber-700 mt-1 leading-relaxed">가정통신문 및 도서관 출입문 부착용 전용 접속 QR코드를 생성하고 PNG로 저장합니다.</p>
-            </div>
-            <button onclick="openModal('qrModal'); generateQrCode(getAppAccessUrl());" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1">
-              <span>📷</span> QR코드 보기 & 저장
-            </button>
-          </div>
-        </div>
-
-        <!-- 4. 긴급 사이렌 공지 -->
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-          <h4 class="font-extrabold text-slate-900 text-sm border-b pb-2 flex items-center gap-2"><span>🚨</span> 긴급 사이렌 대타 모집 발령</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">긴급 활동 일자</label>
-              <input type="date" id="cfgEmergencyDate" class="w-full px-3 py-2 border rounded-lg">
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">대상 시간대</label>
-              <select id="cfgEmergencyTime" class="w-full px-3 py-2 border rounded-lg"></select>
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">안내 사유</label>
-              <input type="text" id="cfgEmergencyDesc" placeholder="예: 개인 사정 결원" class="w-full px-3 py-2 border rounded-lg">
-            </div>
-          </div>
-          <div class="flex items-center gap-3 pt-2">
-            <button onclick="toggleEmergencyBroadcast(true)" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow">
-              🚨 긴급 사이렌 배너 켜기
-            </button>
-            <button onclick="toggleEmergencyBroadcast(false)" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">
-              배너 끄기
-            </button>
-          </div>
-        </div>
-
-        <div class="flex justify-end pt-2">
-          <button onclick="saveAllAdminSettings()" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-bold shadow-md transition-all">
-            💾 모든 설정 구글 시트에 저장하기
-          </button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- ========================================== -->
-  <!-- 📄 A4 1장 도서관 일일 봉사일지 인쇄 영역 -->
-  <!-- ========================================== -->
-  <div id="printableArea" class="hidden text-black font-sans leading-tight">
-    <div class="max-w-[190mm] mx-auto border-2 border-black p-6 space-y-4">
-      <!-- 타이틀 및 결재란 헤더 -->
-      <div class="flex items-start justify-between border-b-2 border-black pb-4">
-        <div class="space-y-1">
-          <div class="text-xs font-bold tracking-widest text-slate-700" id="printSchoolSubtitle">초등학교 도서관</div>
-          <h2 class="text-2xl font-black tracking-tight" id="printLogMainTitle">도서관 자원봉사활동 일일 일지</h2>
-          <div class="text-xs font-medium text-slate-800 pt-1" id="printDateDayInfo">활동 일자: 2026년 10월 30일 (금요일) / 1주차</div>
-        </div>
-        <!-- 우측 3단 결재란 -->
-        <table class="border-collapse border border-black text-center text-xs w-48 shrink-0">
-          <thead>
-            <tr class="bg-slate-100">
-              <th class="border border-black py-1 w-16">담당</th>
-              <th class="border border-black py-1 w-16">총무/교사</th>
-              <th class="border border-black py-1 w-16">관리자</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="h-12">
-              <td class="border border-black"></td>
-              <td class="border border-black"></td>
-              <td class="border border-black"></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 1. 시간대별 활동 위원 배정 및 서명부 -->
-      <div class="space-y-1.5">
-        <h4 class="font-black text-sm flex items-center gap-1.5">
-          <span>■</span> 1. 당일 봉사위원 배정 및 출석 확인 (서명)
-        </h4>
-        <table class="w-full border-collapse border border-black text-xs text-center">
-          <thead>
-            <tr class="bg-slate-100">
-              <th class="border border-black py-1.5 w-16">구분</th>
-              <th class="border border-black py-1.5 w-28">활동 시간</th>
-              <th class="border border-black py-1.5 w-32">배정 위원 1 (기본)</th>
-              <th class="border border-black py-1.5 w-20">서명/날인</th>
-              <th class="border border-black py-1.5 w-32">동행 위원 2 (동행)</th>
-              <th class="border border-black py-1.5 w-20">서명/날인</th>
-              <th class="border border-black py-1.5">비고 (대타 등)</th>
-            </tr>
-          </thead>
-          <tbody id="printSlotsTableBody"></tbody>
-        </table>
-      </div>
-
-      <!-- 2. 도서관 봉사활동 기본 점검 체크리스트 -->
-      <div class="space-y-1.5">
-        <h4 class="font-black text-sm flex items-center gap-1.5">
-          <span>■</span> 2. 도서관 운영 및 환경 점검 체크리스트
-        </h4>
-        <div class="border border-black p-3 rounded grid grid-cols-2 gap-2 text-xs">
-          <label class="flex items-center gap-2">
-            <span class="inline-block w-3.5 h-3.5 border border-black"></span>
-            <span>도서 대출 및 반납 지원 / 이용 학생 안내</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <span class="inline-block w-3.5 h-3.5 border border-black"></span>
-            <span>반납 도서 서가 재배치(배가) 및 훼손도서 점검</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <span class="inline-block w-3.5 h-3.5 border border-black"></span>
-            <span>열람실 책상·의자 환경 정돈 및 실내 환기</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <span class="inline-block w-3.5 h-3.5 border border-black"></span>
-            <span>학생 독서 지도 및 도서관 안전사고 예방 지도</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- 3. 활동 특이사항 및 인계사항 기록란 -->
-      <div class="space-y-1.5">
-        <h4 class="font-black text-sm flex items-center gap-1.5">
-          <span>■</span> 3. 특이사항 및 다음 봉사자 인계사항
-        </h4>
-        <div class="border border-black p-3 h-24 text-xs text-slate-500 flex flex-col justify-between">
-          <p class="leading-relaxed" id="printNoticeMemoLine">· 특이사항 없음 (정상 운영)</p>
-          <div class="text-right text-[11px] text-black">
-            위와 같이 도서관 자원봉사 활동을 성실히 수행하였음을 확인합니다.
-          </div>
-        </div>
-      </div>
-
-      <!-- 일지 하단 인쇄 푸터 -->
-      <div class="pt-2 border-t border-dashed border-slate-400 flex items-center justify-between text-[11px] text-slate-600">
-        <span id="printFooterLibraryName">도서관 봉사단 관리시스템</span>
-        <span>출력일시: <span id="printGeneratedTimestamp">2026-10-30</span></span>
-      </div>
     </div>
-  </div>
 
-  <!-- ========================================== -->
-  <!-- 📊 인앱 구글 시트 플로팅 독 뷰어 -->
-  <!-- ========================================== -->
-  <div id="sheetFloatingDock" class="no-print fixed bottom-4 right-4 z-40 w-[95vw] sm:w-[600px] lg:w-[720px] h-[520px] bg-white rounded-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden hidden sheet-dock-transition">
-    <div class="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between shrink-0 select-none">
-      <div class="flex items-center gap-2 text-xs font-bold">
-        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-        <span>실시간 구글 스프레드시트 뷰어</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="openSheetInNewTab()" title="새 탭으로 열기" class="text-slate-300 hover:text-white p-1">↗</button>
-        <button onclick="minimizeSheetDock()" title="최소화" class="text-slate-300 hover:text-white p-1">ㅡ</button>
-        <button onclick="toggleSheetDock()" title="닫기" class="text-slate-300 hover:text-white p-1">✕</button>
-      </div>
-    </div>
-    <div class="flex-1 bg-slate-50 relative">
-      <iframe id="sheetDockIframe" class="w-full h-full border-0" src="about:blank"></iframe>
-      <div id="sheetDockPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-xs text-slate-500 space-y-3 bg-white">
-        <p>연동된 구글 시트 주소가 확인되지 않았습니다.</p>
-        <button onclick="openModal('gasConfigModal')" class="px-4 py-2 bg-brand-600 text-white font-bold rounded-lg">구글 시트 연동 설정 열기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 📱 [모달 0] 학교 전용 접속 QR코드 모달 -->
-  <!-- ========================================== -->
-  <div id="qrModal" onclick="handleBackdropClick(event, 'qrModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col">
-      <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-        <div>
-          <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2"><span>📱</span> 우리 학교 접속 QR코드</h3>
-          <p class="text-xs text-slate-500 mt-0.5">스마트폰 카메라로 비추면 바로 접속됩니다</p>
-        </div>
-        <button onclick="closeModal('qrModal')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">✕</button>
-      </div>
-      <div class="p-6 flex flex-col items-center text-center space-y-4">
-        <span id="qrSchoolNameBadge" class="px-3 py-1 rounded-full bg-brand-100 text-brand-800 text-xs font-black truncate max-w-full">
-          도서관 봉사단 관리시스템
-        </span>
-        <div class="p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-inner flex items-center justify-center min-w-[200px] min-h-[200px]">
-          <div id="qrcodeContainer" class="flex items-center justify-center"></div>
-        </div>
-        <div class="w-full space-y-2 pt-2">
-          <button onclick="downloadQrImage()" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition-all">
-            <span>📷 QR코드 이미지(PNG) 다운로드</span>
-          </button>
-          <div class="grid grid-cols-2 gap-2">
-            <button onclick="safeCopyToClipboard(getAppAccessUrl(), '우리 학교 전용 접속 링크가 복사되었습니다!')" class="py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1">
-              <span>📋 링크 복사</span>
-            </button>
-            <button onclick="copyQrShareMessage()" class="py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1">
-              <span>💬 카톡 문구 복사</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-        <button onclick="closeModal('qrModal')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold">닫기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 👥 [모달 1] 봉사위원 명부 뷰어 및 관리 모달 -->
-  <!-- ========================================== -->
-  <div id="memberListModal" onclick="handleBackdropClick(event, 'memberListModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-      <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-        <div>
-          <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2"><span>👥</span> 도서관 봉사위원 명부 관리</h3>
-          <p class="text-xs text-slate-500 mt-0.5">등록된 봉사위원 명단 및 순번 배정 현황</p>
-        </div>
-        <button onclick="closeModal('memberListModal')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">✕</button>
-      </div>
-      <div class="px-4 py-2.5 bg-slate-100/70 border-b border-slate-200 flex items-center justify-between text-xs">
-        <div class="flex items-center gap-2">
-          <span class="font-bold text-slate-700">총 인원:</span>
-          <span id="memberCountBadge" class="font-extrabold text-brand-700">0명</span>
-          <span class="text-slate-300">|</span>
-          <span id="memberAssignedCountBadge" class="text-slate-600 font-semibold">0명 배정</span>
-        </div>
-        <span id="memberSyncStatusBadge" class="text-[11px] text-slate-500">구글 시트 연동</span>
-      </div>
-      <div id="memberAddFormContainer" class="p-3 bg-brand-50/50 border-b border-slate-200 hidden">
-        <div class="flex flex-wrap sm:flex-nowrap gap-2">
-          <input type="text" id="newMemberNameInput" placeholder="성함 (예: 홍길동)" class="w-full sm:w-1/3 px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-          <input type="tel" id="newMemberPhoneInput" placeholder="연락처 (010-1234-5678)" class="w-full sm:w-1/2 px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-          <button onclick="addNewMember()" class="w-full sm:w-auto px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shrink-0 shadow">추가</button>
-        </div>
-      </div>
-      <div class="p-4 overflow-y-auto flex-1">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-slate-200 text-slate-600 font-bold bg-slate-50">
-              <th class="py-2.5 px-3 w-12 text-center">번호</th>
-              <th class="py-2.5 px-4">성함</th>
-              <th class="py-2.5 px-3">배정 슬롯</th>
-              <th class="py-2.5 px-4">연락처 (마스킹)</th>
-              <th id="memberTableActionHeader" class="py-2.5 px-3 text-center w-16 hidden">관리</th>
-            </tr>
-          </thead>
-          <tbody id="memberListTableBody" class="divide-y divide-slate-100"></tbody>
-        </table>
-        <div id="memberListEmptyNotice" class="text-center py-10 text-xs text-slate-400 hidden">등록된 봉사위원 데이터가 없습니다.</div>
-      </div>
-      <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-        <button onclick="closeModal('memberListModal')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold">닫기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 📊 [모달 2] 봉사활동 실적 자동 집계표 모달 -->
-  <!-- ========================================== -->
-  <div id="statsModal" onclick="handleBackdropClick(event, 'statsModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-      <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-        <div>
-          <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2"><span>📊</span> 도서관 봉사활동 실적 집계표</h3>
-          <p class="text-xs text-slate-500 mt-0.5">정규 배정 및 대타 참여 내역 자동 합산 통계</p>
-        </div>
-        <button onclick="closeModal('statsModal')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">✕</button>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-4 bg-slate-50/70 border-b border-slate-200 text-xs">
-        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-          <span class="text-slate-500 font-medium">활동 위원수</span>
-          <div id="statTotalVolunteers" class="text-lg font-black text-slate-900 mt-0.5">0명</div>
-        </div>
-        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-          <span class="text-slate-500 font-medium">정규 활동 건수</span>
-          <div id="statRegularTotal" class="text-lg font-black text-emerald-700 mt-0.5">0회</div>
-        </div>
-        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-          <span class="text-slate-500 font-medium">대타 지원 건수</span>
-          <div id="statOverrideTotal" class="text-lg font-black text-purple-700 mt-0.5">0회</div>
-        </div>
-        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-          <span class="text-slate-500 font-medium">총 인정 봉사시간</span>
-          <div id="statTotalHours" class="text-lg font-black text-sky-700 mt-0.5">0시간</div>
-        </div>
-      </div>
-      <div class="p-4 overflow-y-auto flex-1">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-slate-200 text-slate-600 font-bold bg-slate-50">
-              <th class="py-2.5 px-3 w-12 text-center">순위</th>
-              <th class="py-2.5 px-4">봉사위원 성함</th>
-              <th class="py-2.5 px-3 text-center">정규 배정</th>
-              <th class="py-2.5 px-3 text-center">대타 참여</th>
-              <th class="py-2.5 px-4 text-center">총 활동 횟수</th>
-              <th class="py-2.5 px-4 text-right">인정 봉사시간</th>
-            </tr>
-          </thead>
-          <tbody id="statsTableBody" class="divide-y divide-slate-100"></tbody>
-        </table>
-        <div id="statsTableEmptyNotice" class="text-center py-12 text-xs text-slate-400 hidden">집계할 봉사활동 데이터가 없습니다.</div>
-      </div>
-      <div class="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <span class="text-[11px] text-slate-500 font-medium">※ 시간대당 기본 2시간 기준으로 자동 환산됩니다.</span>
-        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <button onclick="copyStatsToClipboard()" class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm">
-            <span>📋</span> 표 1초 복사
-          </button>
-          <button onclick="downloadStatsCsv()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm">
-            <span>📥</span> CSV 엑셀 저장
-          </button>
-          <button onclick="closeModal('statsModal')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold">닫기</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 📖 [모달 3] 대화형 사용설명서 모달 -->
-  <!-- ========================================== -->
-  <div id="manualModal" onclick="handleBackdropClick(event, 'manualModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
-      <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-        <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2"><span>📖</span> 도서관 봉사시스템 운영 설명서</h3>
-        <button onclick="closeModal('manualModal')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">✕</button>
-      </div>
-      <div class="flex border-b border-slate-200 bg-slate-100/60 text-xs font-bold overflow-x-auto no-scrollbar">
-        <button onclick="switchManualTab('volunteer')" id="manualTabBtn-volunteer" class="py-2.5 px-4 border-b-2 border-brand-600 text-brand-700">🙋 봉사위원 길잡이</button>
-        <button onclick="switchManualTab('admin')" id="manualTabBtn-admin" class="py-2.5 px-4 border-b-2 border-transparent text-slate-600 hover:text-slate-900">👑 관리자 가이드</button>
-        <button onclick="switchManualTab('school')" id="manualTabBtn-school" class="py-2.5 px-4 border-b-2 border-transparent text-slate-600 hover:text-slate-900">🏫 새 학교 3분 개설</button>
-        <button onclick="switchManualTab('faq')" id="manualTabBtn-faq" class="py-2.5 px-4 border-b-2 border-transparent text-slate-600 hover:text-slate-900">❓ 자주 묻는 질문</button>
-      </div>
-      <div class="p-5 overflow-y-auto flex-1 space-y-4 text-xs sm:text-sm text-slate-700">
-        <div id="manualContent-volunteer" class="space-y-3">
-          <div class="p-4 rounded-xl bg-brand-50 border border-brand-200">
-            <h4 class="font-bold text-brand-900 text-sm mb-1">1. 내 봉사 일정 1초 확인</h4>
-            <p class="text-brand-800 text-xs leading-relaxed">[내 설정] 탭에 본인의 성함을 입력해 두시면, 매번 찾을 필요 없이 첫 화면에 오늘의 활동 여부가 축하 배지와 함께 자동으로 나타납니다.</p>
-          </div>
-          <div class="p-4 rounded-xl bg-sky-50 border border-sky-200">
-            <h4 class="font-bold text-sky-900 text-sm mb-1">2. 스마트폰 캘린더 알람 등록 (.ics)</h4>
-            <p class="text-sky-800 text-xs leading-relaxed">[내 설정] 또는 [상세 순번표]에서 캘린더 등록 버튼을 누르면 스마트폰 기본 캘린더에 일정이 한 번에 등록되며 전날 저녁 및 활동 당일 1시간 전에 알람이 울립니다.</p>
-          </div>
-        </div>
-        <div id="manualContent-admin" class="hidden space-y-3">
-          <div class="p-4 rounded-xl bg-slate-100 border border-slate-200">
-            <h4 class="font-bold text-slate-900 text-sm mb-1">초기 비밀번호 안내</h4>
-            <p class="text-slate-600 text-xs">최초 관리자 비밀번호는 <strong>0000</strong>입니다. [도서관 설정] 탭에서 원하는 비밀번호로 변경하여 저장할 수 있습니다.</p>
-          </div>
-        </div>
-        <div id="manualContent-school" class="hidden space-y-3">
-          <div class="p-5 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg space-y-4">
+    <!-- A4 학습지 본문 영역 -->
+    <div class="print-container w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 sm:p-10 border border-gray-200">
+        
+        <!-- 학습지 헤더 -->
+        <div class="border-b-2 border-gray-800 pb-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
             <div>
-              <h4 class="font-black text-base">🚀 다른 학교 도서관 3분 개설 원클릭 브릿지</h4>
-              <p class="text-xs text-emerald-100 mt-1">새 구글 시트를 열고 연동 스크립트를 붙여넣기만 하면 전용 시스템이 완성됩니다.</p>
+                <span class="inline-block bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full mb-1">초등 1학년 두뇌 트레이닝</span>
+                <h2 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">재미있는 9×9 숫자 스도쿠</h2>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" class="p-3 bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl text-xs font-black shadow flex items-center justify-center gap-1.5">
-                <span>📄 1. 새 구글 시트 1초 열기</span>
-              </a>
-              <button onclick="copyEmbeddedGasScriptCode()" class="p-3 bg-emerald-900 hover:bg-emerald-950 text-yellow-300 rounded-xl text-xs font-black shadow flex items-center justify-center gap-1.5">
-                <span>📋 2. 연동 스크립트 1초 복사</span>
-              </button>
+            <div class="flex gap-4 text-sm font-medium text-gray-700 w-full sm:w-auto justify-end">
+                <div class="border-b border-gray-400 pb-1 w-28">날짜: &nbsp;&nbsp;&nbsp;&nbsp;월 &nbsp;&nbsp;&nbsp;&nbsp;일</div>
+                <div class="border-b border-gray-400 pb-1 w-28">이름: </div>
             </div>
-          </div>
         </div>
-        <div id="manualContent-faq" class="hidden space-y-3">
-          <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-            <h5 class="font-bold text-slate-800 text-xs">Q. 스마트폰 바탕화면에 앱 아이콘으로 설치하고 싶어요.</h5>
-            <p class="text-[11px] text-slate-600 mt-1">갤럭시(삼성인터넷): 우측 하단 줄 3개(≡) ➔ [현재 페이지 추가] ➔ [홈 화면]<br>아이폰(사파리): 하단 공유(⎋) ➔ [홈 화면에 추가]</p>
-          </div>
+
+        <!-- 규칙 설명 박스 -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 text-sm text-gray-700">
+            <p class="font-bold text-gray-900 mb-1.5 flex items-center gap-1.5">
+                <span>📌</span> 약속을 지켜서 빈칸에 1부터 9까지 숫자를 써넣어요!
+            </p>
+            <ul class="list-disc list-inside space-y-1 text-xs sm:text-sm text-gray-600">
+                <li><strong>가로줄</strong>(9칸)에 1~9 숫자가 한 번씩만 들어가야 해요.</li>
+                <li><strong>세로줄</strong>(9칸)에도 1~9 숫자가 한 번씩만 들어가야 해요.</li>
+                <li>굵은 선으로 나뉜 <strong>작은 네모(3×3)</strong> 안에도 1~9 숫자가 한 번씩만 들어가야 해요.</li>
+            </ul>
         </div>
-      </div>
-      <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-        <button onclick="closeModal('manualModal')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold">닫기</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- ========================================== -->
-  <!-- 🔑 [모달 4] 관리자 로그인 모달 -->
-  <!-- ========================================== -->
-  <div id="adminLoginModal" onclick="handleBackdropClick(event, 'adminLoginModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-1.5"><span>🔑</span> 관리자 인증</h3>
-        <button onclick="closeModal('adminLoginModal')" class="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-      </div>
-      <div>
-        <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 (초기값: 0000)</label>
-        <input type="password" id="adminPasswordInput" placeholder="비밀번호 입력" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-slate-900 outline-none" onkeydown="if(event.key==='Enter') verifyAdminLogin()">
-      </div>
-      <button onclick="verifyAdminLogin()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow">로그인</button>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 🔄 [모달 5] 대타 지정 모달 -->
-  <!-- ========================================== -->
-  <div id="overrideModal" onclick="handleBackdropClick(event, 'overrideModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-1.5"><span>🔄</span> 봉사 대타 지정 및 변경</h3>
-        <button onclick="closeModal('overrideModal')" class="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-      </div>
-      <div class="space-y-2 text-xs">
-        <p id="overrideSlotDesc" class="font-bold text-slate-700 bg-slate-100 p-2.5 rounded-lg">-</p>
-        <div>
-          <label class="block font-bold text-slate-700 mb-1">대타로 활동하실 위원님 성함</label>
-          <input type="text" id="overrideNameInput" placeholder="예: 김도서" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none" onkeydown="if(event.key==='Enter') saveOverrideChange()">
+        <!-- 메인 문제 그리드 -->
+        <div class="mb-8">
+            <div id="puzzleGrid" class="sudoku-grid">
+                <!-- 자바스크립트로 81칸 생성 -->
+            </div>
         </div>
-      </div>
-      <div class="flex items-center gap-2 pt-2">
-        <button onclick="saveOverrideChange()" class="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow">지정 완료</button>
-        <button onclick="removeOverrideChange()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">원래대로</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- ========================================== -->
-  <!-- 🔗 [모달 6] 구글 시트 연동 설정 모달 -->
-  <!-- ========================================== -->
-  <div id="gasConfigModal" onclick="handleBackdropClick(event, 'gasConfigModal')" class="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-1.5"><span>⚙️</span> 구글 스프레드시트 연동</h3>
-        <button onclick="closeModal('gasConfigModal')" class="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-      </div>
-      <div class="space-y-2 text-xs">
-        <label class="block font-bold text-slate-700">Apps Script 웹 앱 URL</label>
-        <input type="text" id="gasWebAppUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2 border rounded-lg text-xs font-mono focus:ring-2 focus:ring-brand-500 outline-none">
-        <p class="text-slate-500 leading-relaxed">배포된 Apps Script 주소를 입력하시면 실시간 동기화가 활성화됩니다.</p>
-      </div>
-      <div class="flex justify-end gap-2 pt-2">
-        <button onclick="closeModal('gasConfigModal')" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">취소</button>
-        <button onclick="saveGasConfigUrl()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold">연동 및 저장</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 💬 [토스트 알림창] -->
-  <div id="toastNotification" class="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-2xl pointer-events-none transition-all duration-300 opacity-0 translate-y-3 bg-slate-900">
-    알림 내용
-  </div>
-
-  <!-- ========================================== -->
-  <!-- 💻 최적화 자바스크립트 엔진 -->
-  <!-- ========================================== -->
-  <script>
-    // --- 최적화 백엔드 Apps Script 템플릿 ---
-    const GAS_BACKEND_TEMPLATE_CODE = `function onOpen() {
-  SpreadsheetApp.getUi().createMenu('📚 도서관 봉사 관리')
-    .addItem('🌟 [최초 1회] 표준 5대 시트 자동 구성', 'setupNewSchoolTemplate')
-    .addSeparator()
-    .addItem('🔑 관리자 비밀번호 [0000] 리셋', 'menuResetAdminPassword')
-    .addToUi();
-}
-function getDefaultTimeSlots() {
-  return [
-    { id: 't1', name: '오전 1차', startTime: '08:30', endTime: '10:30' },
-    { id: 't2', name: '오전 2차', startTime: '10:30', endTime: '12:30' }
-  ];
-}
-function setupNewSchoolTemplate() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  createOrResetStandardSheets(ss, '2주', '도서관', '관리자', '', getDefaultTimeSlots());
-  SpreadsheetApp.getUi().alert('🎉 표준 5대 시트 구성이 완료되었습니다!');
-}
-function createOrResetStandardSheets(ss, cycleType, libName, adminName, adminEmail, timeSlots) {
-  cycleType = cycleType || '2주'; libName = libName || '도서관'; adminName = adminName || '관리자';
-  timeSlots = (Array.isArray(timeSlots) && timeSlots.length > 0) ? timeSlots : getDefaultTimeSlots();
-
-  var cfg = ss.getSheetByName('시스템 설정') || ss.insertSheet('시스템 설정');
-  cfg.clear(); cfg.getRange('A1:B1').setValues([['항목', '값']]).setBackground('#1e293b').setFontColor('#fff').setFontWeight('bold');
-  var configs = [
-    ['libraryName', libName], ['adminName', adminName], ['adminPassword', '0000'],
-    ['adminEmail', adminEmail || ''], ['cycleType', cycleType], ['timeSlots', JSON.stringify(timeSlots)],
-    ['cycleBaseDate', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd')],
-    ['emergencyActive', 'false'], ['emergencyDate', ''], ['emergencyTime', timeSlots[0].startTime], ['emergencyDesc', '']
-  ];
-  cfg.getRange(2, 1, configs.length, 2).setValues(configs);
-
-  var rSheet = ss.getSheetByName('봉사자 순번') || ss.insertSheet('봉사자 순번');
-  rSheet.clear(); rSheet.getRange('A1:F1').setValues([['순번', '주차', '요일', '시간대', '봉사위원 1 (기본)', '봉사위원 2 (동행)']]).setBackground('#15803d').setFontColor('#fff').setFontWeight('bold');
-  var wLimit = (cycleType === '1주') ? 1 : ((cycleType === '1달') ? 4 : 2);
-  var days = ['월요일', '화요일', '수요일', '목요일', '금요일'];
-  var rRows = []; var seq = 1;
-  for (var w = 1; w <= wLimit; w++) {
-    for (var d = 0; d < days.length; d++) {
-      for (var t = 0; t < timeSlots.length; t++) {
-        rRows.push([seq++, w + '주차', days[d], timeSlots[t].startTime + ' (' + (timeSlots[t].name || (t+1)+'차') + ')', '', '']);
-      }
-    }
-  }
-  rSheet.getRange(2, 1, rRows.length, 6).setValues(rRows);
-
-  var memSheet = ss.getSheetByName('봉사자 정보') || ss.insertSheet('봉사자 정보');
-  memSheet.clear(); memSheet.getRange('A1:C1').setValues([['순번', '이름', '연락처']]).setBackground('#0369a1').setFontColor('#fff').setFontWeight('bold');
-
-  var logSheet = ss.getSheetByName('출석 및 변경 기록') || ss.insertSheet('출석 및 변경 기록');
-  logSheet.clear(); logSheet.getRange('A1:G1').setValues([['슬롯키', '일자', '시간', '역할', '대상자/대타 성명', '사유', '기록일시']]).setBackground('#475569').setFontColor('#fff').setFontWeight('bold');
-
-  var manSheet = ss.getSheetByName('관리자용 매뉴얼') || ss.insertSheet('관리자용 매뉴얼');
-  manSheet.clear(); manSheet.getRange('A1:B1').merge().setValue('📖 도서관 봉사시스템 운영 매뉴얼').setBackground('#0f172a').setFontColor('#fff').setFontWeight('bold');
-  manSheet.getRange('A2:B3').setValues([['1. 시스템 설정', '시간대와 학교명은 앱에서 설정 가능합니다.'], ['2. 비밀번호 리셋', '도서관 봉사 관리 메뉴에서 0000으로 리셋 가능합니다.']]);
-}
-function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var rSheet = ss.getSheetByName('봉사자 순번') || ss.getSheets()[0];
-  var rData = rSheet.getDataRange().getDisplayValues();
-  var roster = [];
-  for (var i = 1; i < rData.length; i++) {
-    var r = rData[i]; var mW = String(r[1] || '').match(/\\d+/); var d = String(r[2] || '').trim().replace(/요일/, '');
-    if (d) roster.push({ id: i, week: mW ? parseInt(mW[0], 10) : 1, day: d, time: String(r[3] || '').trim(), name1: String(r[4] || '').trim(), name2: String(r[5] || '').trim() });
-  }
-  var cfgSheet = ss.getSheetByName('시스템 설정'); var cfg = {};
-  if (cfgSheet) {
-    var cData = cfgSheet.getDataRange().getDisplayValues();
-    for (var j = 1; j < cData.length; j++) cfg[String(cData[j][0]).trim()] = String(cData[j][1] || '').trim();
-  }
-  var memSheet = ss.getSheetByName('봉사자 정보'); var members = [];
-  if (memSheet) {
-    var mData = memSheet.getDataRange().getDisplayValues();
-    for (var k = 1; k < mData.length; k++) if (mData[k][1]) members.push({ id: k, name: String(mData[k][1]).trim(), phone: String(mData[k][2] || '').trim() });
-  }
-  var tSlots = getDefaultTimeSlots();
-  if (cfg.timeSlots) { try { tSlots = JSON.parse(cfg.timeSlots); } catch(ex) {} }
-  var payload = {
-    status: 'success', spreadsheetUrl: ss.getUrl(), roster: roster, members: members,
-    libraryName: cfg.libraryName || '도서관', adminName: cfg.adminName || '관리자',
-    adminEmail: cfg.adminEmail || '', cycleType: cfg.cycleType || '2주', timeSlots: tSlots,
-    emergency: { active: cfg.emergencyActive === 'true', date: cfg.emergencyDate, time: cfg.emergencyTime, desc: cfg.emergencyDesc }
-  };
-  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
-}
-function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var p = JSON.parse(e.postData.contents);
-  if (p.action === 'initSheetStructure') {
-    createOrResetStandardSheets(ss, p.cycleType, p.libraryName, p.adminName, p.adminEmail, p.timeSlots);
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', spreadsheetUrl: ss.getUrl() })).setMimeType(ContentService.MimeType.JSON);
-  }
-  if (p.action === 'saveMembers') {
-    var memSheet = ss.getSheetByName('봉사자 정보') || ss.insertSheet('봉사자 정보');
-    memSheet.clear(); memSheet.getRange('A1:C1').setValues([['순번', '이름', '연락처']]).setBackground('#0369a1').setFontColor('#fff').setFontWeight('bold');
-    if (Array.isArray(p.members) && p.members.length > 0) {
-      var rows = p.members.map(function(m, idx) { return [idx + 1, m.name, m.phone || '']; });
-      memSheet.getRange(2, 1, rows.length, 3).setValues(rows);
-    }
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
-  }
-  if (p.action === 'setOverride') {
-    var lSheet = ss.getSheetByName('출석 및 변경 기록') || ss.insertSheet('출석 및 변경 기록');
-    lSheet.appendRow([p.slotKey, p.slotKey.split('_')[0], p.slotKey.split('_')[1], '대타', p.name, '대타 지정', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss')]);
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
-  }
-  return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
-}`;
-
-    // --- 글로벌 상태 관리 ---
-    let gasWebAppUrl = '';
-    let spreadsheetUrl = '';
-    let isAdminLoggedIn = false;
-    let adminPassword = '0000';
-    let libraryName = '도서관 봉사단 관리시스템';
-    let adminName = '관리자';
-    let adminEmail = '';
-    let cycleType = '2주';
-    let cycleBaseDate = '2026-03-02';
-    let currentSelectedDate = new Date();
-    let currentCalendarDate = new Date();
-
-    let timeSlots = [
-      { id: 't1', name: '오전 1차', startTime: '08:30', endTime: '10:30' },
-      { id: 't2', name: '오전 2차', startTime: '10:30', endTime: '12:30' }
-    ];
-
-    let roster = [];
-    let members = [];
-    let overrides = {};
-    let emergency = { active: false, date: '', time: '08:30', desc: '' };
-    let myVolunteerName = localStorage.getItem('myVolunteerName') || '';
-
-    // ==========================================
-    // 1. 공통 모달 & 클립보드 유틸리티
-    // ==========================================
-    function openModal(id) {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('hidden');
-    }
-
-    function closeModal(id) {
-      const el = document.getElementById(id);
-      if (el) el.classList.add('hidden');
-    }
-
-    function handleBackdropClick(event, modalId) {
-      if (event.target.id === modalId) closeModal(modalId);
-    }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        ['qrModal', 'memberListModal', 'statsModal', 'manualModal', 'adminLoginModal', 'overrideModal', 'gasConfigModal'].forEach(m => closeModal(m));
-      }
-    });
-
-    function getOverrideName(slotKey) {
-      const val = overrides[slotKey];
-      if (!val) return '';
-      if (typeof val === 'object' && val !== null && val.name) return String(val.name).trim();
-      return String(val).trim();
-    }
-
-    function safeCopyToClipboard(text, successMsg = '클립보드에 복사되었습니다.') {
-      if (!text) return;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => showToast(successMsg, 'success'))
-          .catch(() => fallbackCopy(text, successMsg));
-      } else {
-        fallbackCopy(text, successMsg);
-      }
-    }
-
-    function fallbackCopy(text, successMsg) {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-        showToast(successMsg, 'success');
-      } catch (e) {
-        showToast('클립보드 권한을 확인해 주세요.', 'error');
-      }
-      document.body.removeChild(ta);
-    }
-
-    // ==========================================
-    // 2. 초기화 및 오프라인 로컬 미러링
-    // ==========================================
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const urlGas = params.get('gas') || params.get('sheet');
-        if (urlGas && urlGas.startsWith('http')) {
-          gasWebAppUrl = urlGas.trim();
-          localStorage.setItem('libraryGasUrl', gasWebAppUrl);
-        } else {
-          gasWebAppUrl = localStorage.getItem('libraryGasUrl') || '';
-        }
-
-        const nameInput = document.getElementById('myVolunteerNameInput');
-        if (nameInput) nameInput.value = myVolunteerName;
-
-        loadAlarmPreferences();
-        loadOfflineCache();
-        populateSettingsForm();
-        updateSyncBadge();
-        updateHeaderDate();
-        renderAllViews();
-
-        if (gasWebAppUrl) {
-          fetchGasData();
-        } else {
-          checkEmptyState();
-        }
-      } catch (err) {
-        console.error('Init Error:', err);
-      }
-    });
-
-    function loadAlarmPreferences() {
-      const eveVal = localStorage.getItem('alarmEveToggle');
-      const dayVal = localStorage.getItem('alarmDayToggle');
-      if (eveVal !== null) document.getElementById('alarmEveToggle').checked = (eveVal === 'true');
-      if (dayVal !== null) document.getElementById('alarmDayToggle').checked = (dayVal === 'true');
-    }
-
-    function saveAlarmPreferences() {
-      const eve = document.getElementById('alarmEveToggle').checked;
-      const day = document.getElementById('alarmDayToggle').checked;
-      localStorage.setItem('alarmEveToggle', eve ? 'true' : 'false');
-      localStorage.setItem('alarmDayToggle', day ? 'true' : 'false');
-      showToast('알람 설정이 저장되었습니다.');
-    }
-
-    function saveOfflineCache() {
-      try {
-        const cache = { libraryName, adminName, adminEmail, adminPassword, cycleType, cycleBaseDate, timeSlots, roster, members, overrides, spreadsheetUrl };
-        localStorage.setItem('lib_volunteer_cache', JSON.stringify(cache));
-      } catch(e) {}
-    }
-
-    function loadOfflineCache() {
-      try {
-        const raw = localStorage.getItem('lib_volunteer_cache');
-        if (!raw) return;
-        const c = JSON.parse(raw);
-        if (c.libraryName) libraryName = c.libraryName;
-        if (c.adminName) adminName = c.adminName;
-        if (c.adminEmail) adminEmail = c.adminEmail;
-        if (c.adminPassword) adminPassword = c.adminPassword;
-        if (c.cycleType) cycleType = c.cycleType;
-        if (c.cycleBaseDate) cycleBaseDate = c.cycleBaseDate;
-        if (Array.isArray(c.timeSlots) && c.timeSlots.length > 0) timeSlots = c.timeSlots;
-        if (Array.isArray(c.roster)) roster = c.roster;
-        if (Array.isArray(c.members)) members = c.members;
-        if (c.overrides) overrides = c.overrides;
-        if (c.spreadsheetUrl) spreadsheetUrl = c.spreadsheetUrl;
-        document.getElementById('headerLibraryName').textContent = libraryName;
-      } catch(e) {}
-    }
-
-    function renderAllViews() {
-      renderTodayView();
-      renderCalendarView();
-      renderRosterView();
-      renderTimeSlotsEditor();
-      syncPrintArea();
-    }
-
-    // ==========================================
-    // 3. 탭 전환 및 주차 계산
-    // ==========================================
-    function switchTab(tabId) {
-      const tabs = ['today', 'calendar', 'roster', 'mysettings', 'adminsettings'];
-      tabs.forEach(t => {
-        const content = document.getElementById(`tabContent-${t}`);
-        const btn = document.getElementById(`nav-${t}`);
-        if (content) content.classList.toggle('hidden', t !== tabId);
-        if (btn) {
-          btn.className = (t === tabId)
-            ? 'py-2.5 px-3 border-b-2 border-brand-600 text-brand-700 flex items-center gap-1.5 whitespace-nowrap'
-            : 'py-2.5 px-3 border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center gap-1.5 whitespace-nowrap';
-        }
-      });
-      if (tabId === 'calendar') renderCalendarView();
-      if (tabId === 'roster') renderRosterView();
-      if (tabId === 'adminsettings') populateSettingsForm();
-    }
-
-    function calculateWeekCycle(targetDate) {
-      if (cycleType === '1주') return 1;
-      const d = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-      let bDate = new Date(cycleBaseDate || '2026-03-02');
-      if (isNaN(bDate.getTime())) bDate = new Date(2026, 2, 2);
-
-      const getMonday = (dt) => {
-        const m = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
-        const day = m.getDay();
-        m.setDate(m.getDate() + (day === 0 ? -6 : 1 - day));
-        m.setHours(0, 0, 0, 0);
-        return m;
-      };
-
-      const diffWeeks = Math.round((getMonday(d).getTime() - getMonday(bDate).getTime()) / (7 * 24 * 60 * 60 * 1000));
-      return (cycleType === '1달') ? (((diffWeeks % 4) + 4) % 4 + 1) : (((diffWeeks % 2) + 2) % 2 + 1);
-    }
-
-    function normalizeTimeStr(t) {
-      if (!t) return '';
-      const m = String(t).trim().match(/(\d{1,2}):(\d{2})/);
-      return m ? `${String(m[1]).padStart(2, '0')}:${m[2]}` : String(t).trim();
-    }
-
-    // ==========================================
-    // 4. [당일 현황]
-    // ==========================================
-    function navigateTodayDate(delta) {
-      if (delta === 0) currentSelectedDate = new Date();
-      else currentSelectedDate.setDate(currentSelectedDate.getDate() + delta);
-      renderTodayView();
-      syncPrintArea();
-    }
-
-    function renderTodayView() {
-      const cur = currentSelectedDate;
-      const y = cur.getFullYear(), m = String(cur.getMonth() + 1).padStart(2, '0'), d = String(cur.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${d}`;
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-      const dayIdx = cur.getDay();
-      const dayName = dayNames[dayIdx];
-      const isWeekend = (dayIdx === 0 || dayIdx === 6);
-
-      const dateTextEl = document.getElementById('currentViewDateText');
-      const dayBadgeEl = document.getElementById('currentViewDayBadge');
-      const weekBadgeEl = document.getElementById('currentViewWeekCycleBadge');
-      if (dateTextEl) dateTextEl.textContent = dateStr;
-      if (dayBadgeEl) {
-        dayBadgeEl.textContent = `${dayName}요일`;
-        dayBadgeEl.className = isWeekend ? 'px-2 py-0.5 rounded-md text-xs font-bold bg-rose-100 text-rose-700' : 'px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-700';
-      }
-
-      const wNum = calculateWeekCycle(cur);
-      if (weekBadgeEl) {
-        weekBadgeEl.textContent = `${wNum}주차`;
-        weekBadgeEl.className = (wNum === 1) ? 'px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800' : 'px-2 py-0.5 rounded-md text-xs font-bold bg-sky-100 text-sky-800';
-      }
-
-      const container = document.getElementById('todaySlotsContainer');
-      if (!container) return;
-      container.innerHTML = '';
-
-      let hasMyDutyToday = false;
-
-      if (isWeekend) {
-        container.innerHTML = `
-          <div class="col-span-full p-8 rounded-2xl bg-white border border-slate-200 text-center shadow-sm space-y-2">
-            <span class="text-3xl">☕</span>
-            <h4 class="font-bold text-slate-800 text-sm">주말 정기 휴관일입니다</h4>
-            <p class="text-xs text-slate-500">도서관 봉사활동은 평일(월~금)에 운영됩니다. 편안한 주말 보내세요!</p>
-          </div>
-        `;
-      } else {
-        timeSlots.forEach((slot, idx) => {
-          const sNorm = normalizeTimeStr(slot.startTime);
-          const rMatch = roster.find(r => r.week === wNum && r.day === dayName && normalizeTimeStr(r.time) === sNorm);
-          const key1 = `${dateStr}_${slot.startTime}_1`;
-          const key2 = `${dateStr}_${slot.startTime}_2`;
-          const ovr1 = getOverrideName(key1);
-          const ovr2 = getOverrideName(key2);
-          const name1 = ovr1 || (rMatch ? rMatch.name1 : '') || '(배정 대기)';
-          const name2 = ovr2 || (rMatch ? rMatch.name2 : '') || '(1인 근무)';
-
-          if (myVolunteerName && (name1 === myVolunteerName || name2 === myVolunteerName)) hasMyDutyToday = true;
-
-          const card = document.createElement('div');
-          card.className = 'bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow';
-          card.innerHTML = `
-            <div>
-              <div class="flex items-center justify-between border-b pb-3 mb-3">
-                <span class="px-2.5 py-1 rounded-lg bg-brand-50 text-brand-800 font-extrabold text-xs">⏰ ${slot.startTime} ~ ${slot.endTime}</span>
-                <span class="text-xs font-bold text-slate-500">${slot.name || `${idx + 1}차`}</span>
-              </div>
-              <div class="space-y-3">
-                <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <span class="text-[11px] font-bold text-slate-500">봉사위원 1 (기본)</span>
-                    <div class="font-extrabold text-sm text-slate-900 mt-0.5 flex items-center gap-1.5">
-                      <span>${name1}</span>
-                      ${ovr1 ? '<span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-bold">대타</span>' : ''}
-                    </div>
-                  </div>
-                  <button onclick="openOverrideModal('${key1}', '${dateStr} ${slot.startTime} 1번 위원')" class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100">대타 지정</button>
+        <!-- 하단 구분선 및 정답 영역 -->
+        <div class="border-t-2 border-dashed border-gray-300 pt-5 mt-4">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div class="text-center sm:text-left max-w-xs">
+                    <span class="inline-block bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded mb-1">부모님 / 선생님 확인용</span>
+                    <h3 class="text-base font-bold text-gray-800 mb-1">✅ 정답 확인하기</h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">
+                        빨간색으로 표시된 숫자가 빈칸에 들어갈 정답입니다. 다 푼 뒤에 스스로 채점해 보아요!
+                    </p>
                 </div>
-                <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <span class="text-[11px] font-bold text-slate-500">봉사위원 2 (동행)</span>
-                    <div class="font-extrabold text-sm text-slate-900 mt-0.5 flex items-center gap-1.5">
-                      <span>${name2}</span>
-                      ${ovr2 ? '<span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-bold">대타</span>' : ''}
+                
+                <!-- 미니 정답 그리드 -->
+                <div>
+                    <div id="solutionGrid" class="sudoku-grid-mini">
+                        <!-- 자바스크립트로 81칸 정답 생성 -->
                     </div>
-                  </div>
-                  <button onclick="openOverrideModal('${key2}', '${dateStr} ${slot.startTime} 2번 위원')" class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100">대타 지정</button>
                 </div>
-              </div>
             </div>
-          `;
-          container.appendChild(card);
-        });
-      }
-
-      const dutyBanner = document.getElementById('myDutyAlertBanner');
-      const dutyNameText = document.getElementById('myDutyNameText');
-      if (dutyBanner && dutyNameText) {
-        if (hasMyDutyToday && myVolunteerName) {
-          dutyNameText.textContent = myVolunteerName;
-          dutyBanner.classList.remove('hidden');
-        } else {
-          dutyBanner.classList.add('hidden');
-        }
-      }
-    }
-
-    // ==========================================
-    // 5. A4 일일 봉사일지 1장 인쇄 렌더러
-    // ==========================================
-    function syncPrintArea() {
-      const cur = currentSelectedDate;
-      const y = cur.getFullYear(), m = cur.getMonth() + 1, d = cur.getDate();
-      const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-      const dayIdx = cur.getDay();
-      const dayName = dayNames[dayIdx];
-      const wNum = calculateWeekCycle(cur);
-
-      const sub = document.getElementById('printSchoolSubtitle');
-      const mainT = document.getElementById('printLogMainTitle');
-      const dateInfo = document.getElementById('printDateDayInfo');
-      const footLib = document.getElementById('printFooterLibraryName');
-      const footTime = document.getElementById('printGeneratedTimestamp');
-
-      if (sub) sub.textContent = libraryName;
-      if (mainT) mainT.textContent = `${libraryName} 자원봉사활동 일일 일지`;
-      if (dateInfo) dateInfo.textContent = `활동 일자: ${y}년 ${m}월 ${d}일 (${dayName}요일) / ${wNum}주차 운영`;
-      if (footLib) footLib.textContent = libraryName;
-      if (footTime) footTime.textContent = new Date().toLocaleString('ko-KR');
-
-      const tbody = document.getElementById('printSlotsTableBody');
-      if (tbody) {
-        tbody.innerHTML = '';
-        if (dayIdx === 0 || dayIdx === 6) {
-          tbody.innerHTML = `<tr><td colspan="7" class="border border-black py-6 text-center font-bold">주말 정기 휴관일 (봉사활동 없음)</td></tr>`;
-        } else {
-          timeSlots.forEach((slot, idx) => {
-            const sNorm = normalizeTimeStr(slot.startTime);
-            const rMatch = roster.find(r => r.week === wNum && r.day === dayName && normalizeTimeStr(r.time) === sNorm);
-            const ovr1 = getOverrideName(`${dateStr}_${slot.startTime}_1`);
-            const ovr2 = getOverrideName(`${dateStr}_${slot.startTime}_2`);
-            const name1 = ovr1 || (rMatch ? rMatch.name1 : '') || '공석';
-            const name2 = ovr2 || (rMatch ? rMatch.name2 : '') || '1인 근무';
-            let note = `${slot.name || `${idx + 1}차`}`;
-            if (ovr1) note += ` (1번 대타: ${ovr1})`;
-            if (ovr2) note += ` (2번 대타: ${ovr2})`;
-
-            const tr = document.createElement('tr');
-            tr.className = 'h-11';
-            tr.innerHTML = `
-              <td class="border border-black font-bold">${slot.name || `${idx + 1}차`}</td>
-              <td class="border border-black font-mono font-semibold">${slot.startTime} ~ ${slot.endTime}</td>
-              <td class="border border-black font-bold">${name1}</td>
-              <td class="border border-black text-slate-300">(인)</td>
-              <td class="border border-black font-bold">${name2}</td>
-              <td class="border border-black text-slate-300">${name2 === '1인 근무' ? '-' : '(인)'}</td>
-              <td class="border border-black text-left px-2 text-[11px]">${note}</td>
-            `;
-            tbody.appendChild(tr);
-          });
-        }
-      }
-    }
-
-    function printDailyLog() {
-      syncPrintArea();
-      window.print();
-    }
-
-    // ==========================================
-    // 6. [월별 캘린더]
-    // ==========================================
-    function changeCalendarMonth(delta) {
-      currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
-      renderCalendarView();
-    }
-
-    function resetCalendarToCurrentMonth() {
-      currentCalendarDate = new Date();
-      renderCalendarView();
-    }
-
-    function renderCalendarView() {
-      const year = currentCalendarDate.getFullYear(), month = currentCalendarDate.getMonth();
-      const titleEl = document.getElementById('calendarMonthTitle');
-      if (titleEl) titleEl.textContent = `${year}년 ${month + 1}월`;
-
-      const gridBody = document.getElementById('calendarGridBody');
-      if (!gridBody) return;
-      gridBody.innerHTML = '';
-
-      const firstDay = new Date(year, month, 1).getDay();
-      const lastDate = new Date(year, month + 1, 0).getDate();
-      const totalCells = Math.ceil((firstDay + lastDate) / 7) * 7;
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      for (let i = 0; i < totalCells; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'min-h-[90px] p-1.5 flex flex-col justify-between transition-colors';
-
-        if (i < firstDay || i >= firstDay + lastDate) {
-          cell.className += ' bg-slate-50/50 text-slate-300';
-          cell.innerHTML = '&nbsp;';
-        } else {
-          const dNum = i - firstDay + 1;
-          const dObj = new Date(year, month, dNum);
-          const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
-          const dayIdx = dObj.getDay();
-          const isWeekend = (dayIdx === 0 || dayIdx === 6);
-          const isToday = (dStr === todayStr);
-
-          if (isToday) cell.className += ' bg-amber-50/60 ring-2 ring-brand-500 ring-inset';
-          else if (isWeekend) cell.className += ' bg-slate-50/60';
-          else cell.className += ' bg-white hover:bg-slate-50/80';
-
-          let topHtml = `<div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-[11px] ${dayIdx === 0 ? 'text-rose-600' : (dayIdx === 6 ? 'text-sky-600' : 'text-slate-800')}">${dNum}</span>`;
-
-          if (isWeekend) {
-            topHtml += `<span class="text-[10px] text-slate-400">휴관</span></div>`;
-            cell.innerHTML = topHtml + `<div class="text-[10px] text-slate-400 mt-2 text-center">주말 휴관</div>`;
-          } else {
-            const wNum = calculateWeekCycle(dObj);
-            const badgeBg = (wNum === 1) ? 'bg-emerald-100 text-emerald-800' : (wNum === 2 ? 'bg-sky-100 text-sky-800' : (wNum === 3 ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'));
-            topHtml += `<span class="text-[10px] px-1 rounded font-bold ${badgeBg}">${wNum}주</span></div>`;
-
-            const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-            let slotsHtml = `<div class="space-y-0.5">`;
-            timeSlots.forEach(slot => {
-              const sNorm = normalizeTimeStr(slot.startTime);
-              const rMatch = roster.find(r => r.week === wNum && r.day === dayNames[dayIdx] && normalizeTimeStr(r.time) === sNorm);
-              const n1 = getOverrideName(`${dStr}_${slot.startTime}_1`) || (rMatch ? rMatch.name1 : '') || '공석';
-              const n2 = getOverrideName(`${dStr}_${slot.startTime}_2`) || (rMatch ? rMatch.name2 : '');
-              slotsHtml += `<div class="truncate text-[10px] text-slate-600"><span class="font-semibold text-slate-400">[${slot.startTime}]</span> ${n1}${n2 ? `, ${n2}` : ''}</div>`;
-            });
-            slotsHtml += `</div>`;
-            cell.innerHTML = topHtml + slotsHtml;
-          }
-        }
-        gridBody.appendChild(cell);
-      }
-    }
-
-    // ==========================================
-    // 7. [상세 순번표]
-    // ==========================================
-    function renderRosterView() {
-      const tbody = document.getElementById('rosterTableBody');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-
-      if (roster.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">등록된 순번표 데이터가 없습니다. 관리자 모드에서 구글 시트를 연동해 주세요.</td></tr>`;
-        return;
-      }
-
-      roster.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50 transition-colors';
-        const wClass = (r.week === 1) ? 'bg-emerald-100 text-emerald-800' : (r.week === 2 ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800');
-        tr.innerHTML = `
-          <td class="py-3 px-4 text-center font-bold text-slate-400">${r.id}</td>
-          <td class="py-3 px-3 text-center"><span class="px-2 py-0.5 rounded text-xs font-bold ${wClass}">${r.week}주차</span></td>
-          <td class="py-3 px-3 text-center font-bold text-slate-700">${r.day}요일</td>
-          <td class="py-3 px-4 font-mono font-semibold text-slate-600">${r.time}</td>
-          <td class="py-3 px-4 font-bold text-slate-900">${r.name1 || '<span class="text-amber-600 font-normal">(공석)</span>'}</td>
-          <td class="py-3 px-4 text-slate-700">${r.name2 || '<span class="text-slate-400 font-normal">(1인 근무)</span>'}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    // ==========================================
-    // 8. 가변 시간대 커스텀 매니저
-    // ==========================================
-    function renderTimeSlotsEditor() {
-      const list = document.getElementById('timeSlotsEditorList');
-      if (!list) return;
-      list.innerHTML = '';
-
-      timeSlots.forEach((slot, idx) => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200 text-xs';
-        row.innerHTML = `
-          <input type="text" value="${slot.name || ''}" placeholder="명칭 (예: 1차)" onchange="updateTimeSlot(${idx}, 'name', this.value)" class="w-1/3 px-2 py-1.5 border rounded-lg outline-none">
-          <input type="time" value="${slot.startTime || '08:30'}" onchange="updateTimeSlot(${idx}, 'startTime', this.value)" class="px-2 py-1.5 border rounded-lg outline-none">
-          <span>~</span>
-          <input type="time" value="${slot.endTime || '10:30'}" onchange="updateTimeSlot(${idx}, 'endTime', this.value)" class="px-2 py-1.5 border rounded-lg outline-none">
-          <button onclick="removeTimeSlotRow(${idx})" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg ${timeSlots.length <= 1 ? 'hidden' : ''}">✕</button>
-        `;
-        list.appendChild(row);
-      });
-
-      const select = document.getElementById('cfgEmergencyTime');
-      if (select) {
-        select.innerHTML = '';
-        timeSlots.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.startTime;
-          opt.textContent = `${s.startTime} (${s.name || '봉사'})`;
-          select.appendChild(opt);
-        });
-      }
-    }
-
-    function updateTimeSlot(idx, key, val) {
-      if (timeSlots[idx]) timeSlots[idx][key] = val;
-    }
-
-    function addNewTimeSlotRow() {
-      timeSlots.push({ id: `t${Date.now()}`, name: `${timeSlots.length + 1}차`, startTime: '13:00', endTime: '15:00' });
-      renderTimeSlotsEditor();
-    }
-
-    function removeTimeSlotRow(idx) {
-      if (timeSlots.length <= 1) return;
-      timeSlots.splice(idx, 1);
-      renderTimeSlotsEditor();
-    }
-
-    function applyTimeSlotPreset(type) {
-      if (type === 'standard') {
-        timeSlots = [
-          { id: 't1', name: '오전 1차', startTime: '08:30', endTime: '10:30' },
-          { id: 't2', name: '오전 2차', startTime: '10:30', endTime: '12:30' }
-        ];
-      } else if (type === 'lunch') {
-        timeSlots = [{ id: 't1', name: '점심 집중', startTime: '12:30', endTime: '13:30' }];
-      } else if (type === 'triple') {
-        timeSlots = [
-          { id: 't1', name: '오전 타임', startTime: '09:00', endTime: '11:00' },
-          { id: 't2', name: '점심 타임', startTime: '12:30', endTime: '13:30' },
-          { id: 't3', name: '방과후 타임', startTime: '14:00', endTime: '16:00' }
-        ];
-      }
-      renderTimeSlotsEditor();
-      showToast('시간대 프리셋이 적용되었습니다.');
-    }
-
-    // ==========================================
-    // 9. 명부 관리 & 실적 집계 엔진
-    // ==========================================
-    function maskPhoneNumber(phone) {
-      if (!phone) return '-';
-      const clean = phone.replace(/[^0-9]/g, '');
-      if (clean.length === 11) return `${clean.slice(0, 3)}-****-${clean.slice(7)}`;
-      if (clean.length === 10) return `${clean.slice(0, 3)}-***-${clean.slice(6)}`;
-      return phone;
-    }
-
-    function getEffectiveMembersList() {
-      if (members.length > 0) return members;
-      const unique = new Set();
-      roster.forEach(r => { [r.name1, r.name2].forEach(n => { if (n && !n.includes('(')) unique.add(n); }); });
-      return Array.from(unique).map((n, i) => ({ id: i + 1, name: n, phone: '' }));
-    }
-
-    function renderMemberList() {
-      const tbody = document.getElementById('memberListTableBody');
-      const emptyNotice = document.getElementById('memberListEmptyNotice');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-
-      document.getElementById('memberAddFormContainer').classList.toggle('hidden', !isAdminLoggedIn);
-      document.getElementById('memberTableActionHeader').classList.toggle('hidden', !isAdminLoggedIn);
-
-      const list = getEffectiveMembersList();
-
-      document.getElementById('memberCountBadge').textContent = `${list.length}명`;
-      document.getElementById('memberAssignedCountBadge').textContent = `${roster.length}개 슬롯 배정`;
-
-      if (list.length === 0) {
-        if (emptyNotice) emptyNotice.classList.remove('hidden');
-        return;
-      }
-      if (emptyNotice) emptyNotice.classList.add('hidden');
-
-      list.forEach((m, idx) => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50 transition-colors';
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 text-center text-slate-400 font-bold">${idx + 1}</td>
-          <td class="py-2.5 px-4 font-bold text-slate-900">${m.name}</td>
-          <td class="py-2.5 px-3 text-slate-500 font-medium">정규 배정</td>
-          <td class="py-2.5 px-4 font-mono text-slate-600">${maskPhoneNumber(m.phone)}</td>
-          <td class="py-2.5 px-3 text-center ${isAdminLoggedIn ? '' : 'hidden'}">
-            <button onclick="deleteMember(${m.id})" class="text-rose-500 hover:text-rose-700 font-bold text-xs">삭제</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    async function addNewMember() {
-      const nameInp = document.getElementById('newMemberNameInput');
-      const phoneInp = document.getElementById('newMemberPhoneInput');
-      const name = nameInp.value.trim(), phone = phoneInp.value.trim();
-      if (!name) return showToast('성함을 입력해 주세요.', 'error');
-
-      if (members.length === 0 && roster.length > 0) {
-        members = getEffectiveMembersList();
-      }
-
-      members.push({ id: Date.now(), name, phone });
-      nameInp.value = ''; phoneInp.value = '';
-      renderMemberList();
-      saveOfflineCache();
-      showToast(`${name} 위원님이 등록되었습니다.`, 'success');
-
-      if (gasWebAppUrl) {
-        try {
-          await fetch(gasWebAppUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveMembers', members }) });
-        } catch(e) {}
-      }
-    }
-
-    async function deleteMember(id) {
-      members = getEffectiveMembersList().filter(m => m.id !== id);
-      renderMemberList();
-      saveOfflineCache();
-      showToast('봉사위원이 삭제되었습니다.');
-
-      if (gasWebAppUrl) {
-        try {
-          await fetch(gasWebAppUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveMembers', members }) });
-        } catch(e) {}
-      }
-    }
-
-    function getCalculatedStatsList() {
-      const statsMap = new Map();
-      getEffectiveMembersList().forEach(m => {
-        if (m && m.name && !m.name.includes('(')) statsMap.set(m.name, { name: m.name, regularCount: 0, overrideCount: 0 });
-      });
-
-      roster.forEach(r => {
-        [r.name1, r.name2].forEach(n => {
-          if (n && !n.includes('(')) {
-            if (!statsMap.has(n)) statsMap.set(n, { name: n, regularCount: 0, overrideCount: 0 });
-            statsMap.get(n).regularCount += 1;
-          }
-        });
-      });
-
-      Object.values(overrides).forEach(ovr => {
-        const name = (typeof ovr === 'object' && ovr !== null && ovr.name) ? ovr.name : String(ovr);
-        if (name && !name.includes('(')) {
-          if (!statsMap.has(name)) statsMap.set(name, { name, regularCount: 0, overrideCount: 0 });
-          statsMap.get(name).overrideCount += 1;
-        }
-      });
-
-      const list = Array.from(statsMap.values()).map(i => ({
-        ...i,
-        totalCount: i.regularCount + i.overrideCount,
-        totalHours: (i.regularCount + i.overrideCount) * 2
-      }));
-      return list.sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name, 'ko'));
-    }
-
-    function renderStatsTable() {
-      const tbody = document.getElementById('statsTableBody');
-      const empty = document.getElementById('statsTableEmptyNotice');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-
-      const list = getCalculatedStatsList();
-      document.getElementById('statTotalVolunteers').textContent = `${list.length}명`;
-      document.getElementById('statRegularTotal').textContent = `${list.reduce((a, c) => a + c.regularCount, 0)}회`;
-      document.getElementById('statOverrideTotal').textContent = `${list.reduce((a, c) => a + c.overrideCount, 0)}회`;
-      document.getElementById('statTotalHours').textContent = `${list.reduce((a, c) => a + c.totalHours, 0)}시간`;
-
-      if (list.length === 0) { if (empty) empty.classList.remove('hidden'); return; }
-      if (empty) empty.classList.add('hidden');
-
-      list.forEach((st, idx) => {
-        const tr = document.createElement('tr');
-        tr.className = (idx < 3) ? 'bg-amber-50/40 hover:bg-amber-50/70 font-semibold' : 'hover:bg-slate-50 transition-colors';
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 text-center">${idx + 1}</td>
-          <td class="py-2.5 px-4 font-bold text-slate-900">${st.name}</td>
-          <td class="py-2.5 px-3 text-center text-emerald-800">${st.regularCount}회</td>
-          <td class="py-2.5 px-3 text-center text-purple-700">${st.overrideCount > 0 ? `+${st.overrideCount}회` : '-'}</td>
-          <td class="py-2.5 px-4 text-center"><span class="px-2.5 py-0.5 rounded-full bg-brand-100 text-brand-900 font-black">${st.totalCount}회</span></td>
-          <td class="py-2.5 px-4 text-right font-extrabold text-slate-900 font-mono">${st.totalHours}시간</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function copyStatsToClipboard() {
-      const list = getCalculatedStatsList();
-      if (list.length === 0) return showToast('복사할 실적 데이터가 없습니다.', 'info');
-      let tsv = '순위\t성함\t정규\t대타\t총활동\t인정시간\n';
-      list.forEach((s, i) => { tsv += `${i + 1}\t${s.name}\t${s.regularCount}회\t${s.overrideCount}회\t${s.totalCount}회\t${s.totalHours}시간\n`; });
-      safeCopyToClipboard(tsv, '📋 실적 표가 엑셀/한글용으로 복사되었습니다!');
-    }
-
-    function downloadStatsCsv() {
-      const list = getCalculatedStatsList();
-      if (list.length === 0) return showToast('데이터가 없습니다.', 'info');
-      let csv = '\uFEFF순위,성함,정규,대타,총활동,인정시간\n';
-      list.forEach((s, i) => { csv += `${i + 1},"${s.name}",${s.regularCount},${s.overrideCount},${s.totalCount},${s.totalHours}\n`; });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-      a.download = `도서관실적_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      showToast('📥 엑셀용 CSV 파일이 다운로드되었습니다.', 'success');
-    }
-
-    // ==========================================
-    // 10. QR코드 & 앱 링크
-    // ==========================================
-    function getAppAccessUrl() {
-      let shareUrl = window.location.origin + window.location.pathname;
-      if (gasWebAppUrl) shareUrl += `?gas=${encodeURIComponent(gasWebAppUrl)}`;
-      return shareUrl;
-    }
-
-    function generateQrCode(text) {
-      const c = document.getElementById('qrcodeContainer');
-      const badge = document.getElementById('qrSchoolNameBadge');
-      if (badge) badge.textContent = libraryName;
-      if (!c) return;
-      c.innerHTML = '';
-      if (typeof QRCode !== 'undefined') {
-        new QRCode(c, { text, width: 192, height: 192, colorDark: '#0f172a', colorLight: '#ffffff' });
-      } else {
-        const img = document.createElement('img');
-        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=${encodeURIComponent(text)}`;
-        img.className = 'w-48 h-48 mx-auto';
-        c.appendChild(img);
-      }
-    }
-
-    function downloadQrImage() {
-      const c = document.getElementById('qrcodeContainer');
-      if (!c) return;
-      const canvas = c.querySelector('canvas');
-      const img = c.querySelector('img');
-
-      if (canvas) {
-        const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
-        a.download = `${libraryName}_접속QR.png`;
-        a.click();
-        showToast('📥 QR 이미지(PNG)가 저장되었습니다!', 'success');
-      } else if (img && img.src) {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 192; tempCanvas.height = 192;
-        const ctx = tempCanvas.getContext('2d');
-        const dlImg = new Image();
-        dlImg.crossOrigin = 'anonymous';
-        dlImg.onload = () => {
-          ctx.drawImage(dlImg, 0, 0, 192, 192);
-          const a = document.createElement('a');
-          a.href = tempCanvas.toDataURL('image/png');
-          a.download = `${libraryName}_접속QR.png`;
-          a.click();
-          showToast('📥 QR 이미지(PNG)가 저장되었습니다!', 'success');
-        };
-        dlImg.src = img.src;
-      } else {
-        showToast('QR코드를 준비 중입니다.', 'info');
-      }
-    }
-
-    function copyQrShareMessage() {
-      const msg = `[${libraryName}] 도서관 봉사시스템 안내\n\n활동 일정 확인 및 캘린더 알람 등록 링크:\n${getAppAccessUrl()}\n\n스마트폰 카메라로 QR코드를 비추거나 링크를 눌러 접속하세요! 😊`;
-      safeCopyToClipboard(msg, '💬 안내 문구가 복사되었습니다!');
-    }
-
-    // ==========================================
-    // 11. 대타 지정 & 스마트폰 알람(.ics)
-    // ==========================================
-    let activeOverrideKey = null;
-
-    function openOverrideModal(slotKey, desc) {
-      activeOverrideKey = slotKey;
-      document.getElementById('overrideSlotDesc').textContent = desc || slotKey;
-      document.getElementById('overrideNameInput').value = getOverrideName(slotKey);
-      openModal('overrideModal');
-    }
-
-    async function saveOverrideChange() {
-      if (!activeOverrideKey) return;
-      const name = document.getElementById('overrideNameInput').value.trim();
-      if (!name) return showToast('성함을 입력해 주세요.', 'error');
-      overrides[activeOverrideKey] = name;
-      closeModal('overrideModal');
-      saveOfflineCache();
-      renderTodayView();
-      renderCalendarView();
-      syncPrintArea();
-      showToast(`${name} 위원님으로 대타 지정되었습니다.`, 'success');
-
-      if (gasWebAppUrl) {
-        try {
-          await fetch(gasWebAppUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setOverride', slotKey: activeOverrideKey, name }) });
-        } catch (e) {}
-      }
-    }
-
-    async function removeOverrideChange() {
-      if (!activeOverrideKey) return;
-      delete overrides[activeOverrideKey];
-      closeModal('overrideModal');
-      saveOfflineCache();
-      renderTodayView();
-      renderCalendarView();
-      syncPrintArea();
-      showToast('대타 지정이 해제되었습니다.');
-
-      if (gasWebAppUrl) {
-        try {
-          await fetch(gasWebAppUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setOverride', slotKey: activeOverrideKey, name: '' }) });
-        } catch (e) {}
-      }
-    }
-
-    function downloadMyIcsCalendar() {
-      const targetName = myVolunteerName || '';
-      const wantEve = document.getElementById('alarmEveToggle').checked;
-      const wantDay = document.getElementById('alarmDayToggle').checked;
-      let events = [];
-      const today = new Date();
-
-      for (let i = 0; i < 90; i++) {
-        const cur = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-        if (cur.getDay() === 0 || cur.getDay() === 6) continue;
-
-        const wNum = calculateWeekCycle(cur);
-        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-        const matched = roster.filter(r => r.week === wNum && r.day === dayNames[cur.getDay()]);
-
-        matched.forEach(slot => {
-          if (!targetName || slot.name1 === targetName || slot.name2 === targetName) {
-            const dateStr = cur.toISOString().split('T')[0].replace(/-/g, '');
-            const norm = normalizeTimeStr(slot.time);
-            const digits = norm.replace(/[^0-9]/g, '');
-            const startH = digits.substring(0, 2) || '08', startM = digits.substring(2, 4) || '30';
-            events.push({
-              dateStr, startTime: `${startH}${startM}00`,
-              title: `[도서관 봉사] ${libraryName}`,
-              desc: `${slot.time} 활동 (동행: ${slot.name1}, ${slot.name2})`
-            });
-          }
-        });
-      }
-
-      if (events.length === 0) return showToast('등록 가능한 일정이 없습니다.', 'info');
-
-      let ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Library Volunteer System//KO', 'METHOD:PUBLISH'];
-      events.forEach((ev, idx) => {
-        ics.push(
-          'BEGIN:VEVENT', `UID:lib-vol-${ev.dateStr}-${idx}@school.kr`, `DTSTART:${ev.dateStr}T${ev.startTime}`,
-          `SUMMARY:${ev.title}`, `DESCRIPTION:${ev.desc}`
-        );
-        if (wantEve) {
-          ics.push('BEGIN:VALARM', 'TRIGGER:-PT12H', 'ACTION:DISPLAY', 'DESCRIPTION:도서관 봉사 사전 알림', 'END:VALARM');
-        }
-        if (wantDay) {
-          ics.push('BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:도서관 봉사 1시간 전입니다.', 'END:VALARM');
-        }
-        ics.push('END:VEVENT');
-      });
-      ics.push('END:VCALENDAR');
-
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([ics.join('\r\n')], { type: 'text/calendar;charset=utf-8' }));
-      a.download = `도서관봉사_${targetName || '전체일정'}.ics`;
-      a.click();
-      showToast('스마트폰 캘린더(.ics) 일정이 생성되었습니다!', 'success');
-    }
-
-    // ==========================================
-    // 12. 관리자 인증 & 설정 저장
-    // ==========================================
-    function handleAdminAuthButtonClick() {
-      if (isAdminLoggedIn) {
-        isAdminLoggedIn = false;
-        updateAdminAuthState();
-        showToast('로그아웃되었습니다.');
-      } else {
-        openModal('adminLoginModal');
-      }
-    }
-
-    function verifyAdminLogin() {
-      const inp = document.getElementById('adminPasswordInput');
-      if (inp && inp.value === adminPassword) {
-        isAdminLoggedIn = true;
-        inp.value = '';
-        closeModal('adminLoginModal');
-        updateAdminAuthState();
-        showToast('관리자로 인증되었습니다.', 'success');
-      } else {
-        showToast('비밀번호가 올바르지 않습니다.', 'error');
-      }
-    }
-
-    function updateAdminAuthState() {
-      document.getElementById('adminAuthBtnText').textContent = isAdminLoggedIn ? '로그아웃' : '관리자';
-      document.getElementById('adminLockBadge').classList.toggle('hidden', isAdminLoggedIn);
-      document.getElementById('adminLockedNotice').classList.toggle('hidden', isAdminLoggedIn);
-      document.getElementById('adminUnlockedPanel').classList.toggle('hidden', !isAdminLoggedIn);
-      renderMemberList();
-    }
-
-    function populateSettingsForm() {
-      document.getElementById('cfgLibraryName').value = libraryName;
-      document.getElementById('cfgAdminName').value = adminName;
-      document.getElementById('cfgAdminEmail').value = adminEmail;
-      document.getElementById('cfgAdminPassword').value = adminPassword;
-      document.getElementById('cfgCycleType').value = cycleType;
-      document.getElementById('cfgCycleBaseDate').value = cycleBaseDate;
-    }
-
-    async function saveAllAdminSettings() {
-      libraryName = document.getElementById('cfgLibraryName').value.trim() || '도서관';
-      adminName = document.getElementById('cfgAdminName').value.trim() || '관리자';
-      adminEmail = document.getElementById('cfgAdminEmail').value.trim();
-      const newPw = document.getElementById('cfgAdminPassword').value.trim();
-      if (newPw) adminPassword = newPw;
-
-      cycleType = document.getElementById('cfgCycleType').value;
-      cycleBaseDate = document.getElementById('cfgCycleBaseDate').value;
-
-      document.getElementById('headerLibraryName').textContent = libraryName;
-      saveOfflineCache();
-      renderTodayView();
-      renderCalendarView();
-      syncPrintArea();
-      showToast('도서관 설정이 저장되었습니다.', 'success');
-
-      if (gasWebAppUrl) {
-        try {
-          await fetch(gasWebAppUrl, {
-            method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'saveSystemConfig', libraryName, adminName, adminEmail, adminPassword, cycleType, timeSlots, cycleBaseDate })
-          });
-        } catch(e) {}
-      }
-    }
-
-    async function requestInitSheetStructure() {
-      if (!gasWebAppUrl) return showToast('연동된 구글 시트 주소가 없습니다.', 'error');
-      showToast('5대 탭 원격 생성을 요청 중입니다...', 'info');
-      try {
-        await fetch(gasWebAppUrl, {
-          method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'initSheetStructure', libraryName, adminName, adminEmail, cycleType, timeSlots })
-        });
-        showToast('🚀 5대 시트 탭 구성 완료!', 'success');
-      } catch (err) {
-        showToast('통신 오류가 발생했습니다.', 'error');
-      }
-    }
-
-    // ==========================================
-    // 13. 구글 시트 데이터 통신
-    // ==========================================
-    async function fetchGasData() {
-      if (!gasWebAppUrl) return;
-      updateSyncBadge('연결 중...');
-      try {
-        const res = await fetch(gasWebAppUrl);
-        const d = await res.json();
-        if (d && d.status === 'success') {
-          if (d.libraryName) libraryName = d.libraryName;
-          if (d.adminName) adminName = d.adminName;
-          if (d.adminEmail) adminEmail = d.adminEmail;
-          if (d.adminPassword) adminPassword = d.adminPassword;
-          if (d.cycleType) cycleType = d.cycleType;
-          if (Array.isArray(d.timeSlots)) timeSlots = d.timeSlots;
-          if (Array.isArray(d.roster)) roster = d.roster;
-          if (Array.isArray(d.members)) members = d.members;
-          if (d.spreadsheetUrl) spreadsheetUrl = d.spreadsheetUrl;
-          if (d.emergency) emergency = d.emergency;
-
-          if (d.overrides) {
-            overrides = {};
-            for (const [k, v] of Object.entries(d.overrides)) {
-              overrides[k] = (typeof v === 'object' && v !== null && v.name) ? v.name : v;
+        </div>
+
+    </div>
+
+    <script>
+        /**
+         * 유효한 9x9 스도쿠 완성판을 랜덤으로 생성하는 함수
+         * 기본 패턴에 숫자 치환 및 행/열 셔플을 적용하여 항상 규칙에 맞는 새 보드를 생성합니다.
+         */
+        function generateSolvedBoard() {
+            // 기본 유효 스도쿠 시드 보드
+            const base = [
+                [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                [4, 5, 6, 7, 8, 9, 1, 2, 3],
+                [7, 8, 9, 1, 2, 3, 4, 5, 6],
+                [2, 3, 4, 5, 6, 7, 8, 9, 1],
+                [5, 6, 7, 8, 9, 1, 2, 3, 4],
+                [8, 9, 1, 2, 3, 4, 5, 6, 7],
+                [3, 4, 5, 6, 7, 8, 9, 1, 2],
+                [6, 7, 8, 9, 1, 2, 3, 4, 5],
+                [9, 1, 2, 3, 4, 5, 6, 7, 8]
+            ];
+
+            // 1~9 숫자 랜덤 매핑 생성
+            const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+            shuffleArray(nums);
+            const numMap = {};
+            for (let i = 0; i < 9; i++) {
+                numMap[i + 1] = nums[i];
             }
-          }
 
-          document.getElementById('headerLibraryName').textContent = libraryName;
-          populateSettingsForm();
-          saveOfflineCache();
-          renderAllViews();
-          checkEmptyState();
-          checkEmergencyBanner();
-          updateSyncBadge('🟢 실시간 연동');
-          showToast('구글 시트와 동기화되었습니다.', 'success');
-        } else {
-          updateSyncBadge('⚠️ 시트 에러');
+            // 숫자 치환 적용
+            let board = base.map(row => row.map(val => numMap[val]));
+
+            // 3x3 밴드(가로 3줄 묶음) 내에서의 행 셔플
+            for (let band = 0; band < 3; band++) {
+                const rows = [band * 3, band * 3 + 1, band * 3 + 2];
+                shuffleArray(rows);
+                const tempRows = rows.map(r => [...board[r]]);
+                for (let i = 0; i < 3; i++) {
+                    board[band * 3 + i] = tempRows[i];
+                }
+            }
+
+            // 3x3 스택(세로 3줄 묶음) 내에서의 열 셔플
+            for (let stack = 0; stack < 3; stack++) {
+                const cols = [stack * 3, stack * 3 + 1, stack * 3 + 2];
+                shuffleArray(cols);
+                const tempBoard = board.map(row => [...row]);
+                for (let r = 0; r < 9; r++) {
+                    for (let i = 0; i < 3; i++) {
+                        board[r][stack * 3 + i] = tempBoard[r][cols[i]];
+                    }
+                }
+            }
+
+            return board;
         }
-      } catch (err) {
-        updateSyncBadge('⚪ 오프라인 캐시');
-      }
-    }
 
-    function checkEmptyState() {
-      const notice = document.getElementById('emptyNoticeCard');
-      if (notice) notice.classList.toggle('hidden', roster.length > 0);
-    }
-
-    function updateSyncBadge(statusText) {
-      const b = document.getElementById('syncStatusBadge');
-      if (!b) return;
-      b.textContent = statusText || (gasWebAppUrl ? '🟢 연동됨' : '⚪ 로컬 모드');
-      b.className = (b.textContent.includes('🟢'))
-        ? 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 cursor-pointer'
-        : 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 cursor-pointer';
-    }
-
-    // ==========================================
-    // 14. 플로팅 독 & 유틸
-    // ==========================================
-    function toggleSheetDock() {
-      const dock = document.getElementById('sheetFloatingDock');
-      const iframe = document.getElementById('sheetDockIframe');
-      const placeholder = document.getElementById('sheetDockPlaceholder');
-      if (!dock) return;
-
-      const isHidden = dock.classList.contains('hidden');
-      if (isHidden) {
-        dock.classList.remove('hidden');
-        if (spreadsheetUrl) {
-          if (placeholder) placeholder.classList.add('hidden');
-          if (iframe && iframe.src === 'about:blank') iframe.src = spreadsheetUrl.replace(/\/edit.*$/, '/htmlembed?widget=true&headers=false');
-        } else {
-          if (placeholder) placeholder.classList.remove('hidden');
+        /**
+         * 배열을 무작위로 섞는 Fisher-Yates 셔플 헬퍼 함수
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
         }
-      } else {
-        dock.classList.add('hidden');
-      }
-    }
 
-    function minimizeSheetDock() {
-      const dock = document.getElementById('sheetFloatingDock');
-      if (dock) { dock.classList.toggle('h-[520px]'); dock.classList.toggle('h-10'); }
-    }
+        /**
+         * 초등학교 1학년 난이도(각 가로줄당 빈칸 1~2개, 총 12개 내외)로 문제를 생성하는 함수
+         * 아이들이 쉽게 풀 수 있도록 한 줄이나 한 박스에 빈칸이 몰리지 않게 배분합니다.
+         */
+        function createGrade1Puzzle(solvedBoard) {
+            const puzzle = solvedBoard.map(row => [...row]);
+            const isBlank = Array.from({ length: 9 }, () => Array(9).fill(false));
 
-    function openSheetInNewTab() {
-      if (spreadsheetUrl) window.open(spreadsheetUrl, '_blank');
-      else showToast('연동된 구글 시트 주소가 없습니다.', 'info');
-    }
+            // 1단계: 모든 가로줄(0~8행)에 최소 1개씩 빈칸 만들기 (세로줄 중복 최소화)
+            const colOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+            shuffleArray(colOrder);
 
-    function switchManualTab(tab) {
-      ['volunteer', 'admin', 'school', 'faq'].forEach(t => {
-        const btn = document.getElementById(`manualTabBtn-${t}`);
-        const cnt = document.getElementById(`manualContent-${t}`);
-        if (btn) btn.className = (t === tab) ? 'py-2.5 px-4 border-b-2 border-brand-600 text-brand-700' : 'py-2.5 px-4 border-b-2 border-transparent text-slate-600 hover:text-slate-900';
-        if (cnt) cnt.classList.toggle('hidden', t !== tab);
-      });
-    }
+            for (let r = 0; r < 9; r++) {
+                const c = colOrder[r];
+                puzzle[r][c] = 0;
+                isBlank[r][c] = true;
+            }
 
-    function copyEmbeddedGasScriptCode() {
-      safeCopyToClipboard(GAS_BACKEND_TEMPLATE_CODE, '📋 최신 Apps Script 코드가 복사되었습니다!');
-    }
+            // 2단계: 3개의 줄을 무작위로 골라 빈칸 1개씩 추가 (총 12개의 빈칸으로 성취감 극대화)
+            const extraRows = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+            shuffleArray(extraRows);
+            for (let i = 0; i < 3; i++) {
+                const r = extraRows[i];
+                let c = Math.floor(Math.random() * 9);
+                // 이미 빈칸인 곳은 피함
+                while (isBlank[r][c]) {
+                    c = (c + 1) % 9;
+                }
+                puzzle[r][c] = 0;
+                isBlank[r][c] = true;
+            }
 
-    function saveMyVolunteerName() {
-      const inp = document.getElementById('myVolunteerNameInput');
-      if (!inp) return;
-      myVolunteerName = inp.value.trim();
-      localStorage.setItem('myVolunteerName', myVolunteerName);
-      renderTodayView();
-      renderCalendarView();
-      showToast(`'${myVolunteerName || '위원'}'님으로 저장되었습니다.`, 'success');
-    }
+            return { puzzle, isBlank };
+        }
 
-    function shareKakaoTodaySchedule() {
-      const dStr = currentSelectedDate.toISOString().split('T')[0];
-      const text = `[${libraryName}] ${dStr} 도서관 봉사 일정 안내\n링크: ${getAppAccessUrl()}`;
-      safeCopyToClipboard(text, '💬 카톡 공유 문구가 복사되었습니다.');
-    }
+        /**
+         * 화면의 문제판과 정답판을 렌더링하는 함수
+         */
+        function renderGrids(solvedBoard, puzzleBoard, isBlank) {
+            const puzzleContainer = document.getElementById('puzzleGrid');
+            const solutionContainer = document.getElementById('solutionGrid');
 
-    function handleSyncBadgeClick() {
-      if (isAdminLoggedIn) openModal('gasConfigModal');
-      else showToast(gasWebAppUrl ? '구글 시트와 정상 연결되어 있습니다.' : '로컬 모드로 동작 중입니다.', 'info');
-    }
+            puzzleContainer.innerHTML = '';
+            solutionContainer.innerHTML = '';
 
-    function saveGasConfigUrl() {
-      gasWebAppUrl = document.getElementById('gasWebAppUrlInput').value.trim();
-      localStorage.setItem('libraryGasUrl', gasWebAppUrl);
-      closeModal('gasConfigModal');
-      updateSyncBadge();
-      if (gasWebAppUrl) fetchGasData();
-    }
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    // 문제 셀 생성
+                    const pCell = document.createElement('div');
+                    pCell.className = 'sudoku-cell text-gray-800';
+                    if (r === 2 || r === 5) pCell.classList.add('sudoku-row-border-bottom');
+                    if (r === 8) pCell.classList.add('sudoku-row-last');
+                    
+                    pCell.textContent = puzzleBoard[r][c] !== 0 ? puzzleBoard[r][c] : '';
+                    puzzleContainer.appendChild(pCell);
 
-    function checkEmergencyBanner() {
-      const banner = document.getElementById('emergencySirenBanner');
-      if (!banner) return;
-      if (emergency && emergency.active) {
-        banner.classList.remove('hidden');
-        document.getElementById('emergencyBannerText').textContent = `[${emergency.date} ${emergency.time}] 긴급 대타 봉사위원님을 모십니다! (${emergency.desc || '사유 미기재'})`;
-        document.getElementById('emergencyDismissBtn').classList.toggle('hidden', !isAdminLoggedIn);
-      } else {
-        banner.classList.add('hidden');
-      }
-    }
+                    // 정답 셀 생성
+                    const sCell = document.createElement('div');
+                    sCell.className = 'sudoku-cell text-gray-700';
+                    if (r === 2 || r === 5) sCell.classList.add('sudoku-row-border-bottom');
+                    if (r === 8) sCell.classList.add('sudoku-row-last');
+                    
+                    // 빈칸이었던 곳은 빨간색으로 강조 표시
+                    if (isBlank[r][c]) {
+                        sCell.classList.add('answer-highlight');
+                    }
+                    sCell.textContent = solvedBoard[r][c];
+                    solutionContainer.appendChild(sCell);
+                }
+            }
+        }
 
-    function toggleEmergencyBroadcast(isActive) {
-      emergency.active = isActive;
-      emergency.date = document.getElementById('cfgEmergencyDate').value;
-      emergency.time = document.getElementById('cfgEmergencyTime').value;
-      emergency.desc = document.getElementById('cfgEmergencyDesc').value;
-      checkEmergencyBanner();
-      showToast(isActive ? '긴급 사이렌이 발령되었습니다.' : '긴급 배너가 해제되었습니다.');
-    }
+        /**
+         * 새 학습지 생성 실행 함수
+         */
+        function generateNewWorksheet() {
+            const solved = generateSolvedBoard();
+            const { puzzle, isBlank } = createGrade1Puzzle(solved);
+            renderGrids(solved, puzzle, isBlank);
+        }
 
-    function copyKakaoEmergencyText() {
-      const msg = `🚨 [긴급 대타 공지]\n${libraryName} 도서관\n일시: ${emergency.date} ${emergency.time}\n사유: ${emergency.desc}\n참여 가능하신 위원님은 앱에서 신청해 주세요!\n접속: ${getAppAccessUrl()}`;
-      safeCopyToClipboard(msg, '긴급 카톡 문구가 복사되었습니다!');
-    }
+        /**
+         * PDF 저장 및 인쇄 실행 함수
+         */
+        function saveAsPDF() {
+            window.print();
+        }
 
-    function updateHeaderDate() {
-      const el = document.getElementById('todayDateSubtitle');
-      if (el) el.textContent = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-    }
-
-    function showToast(msg, type = 'normal') {
-      const t = document.getElementById('toastNotification');
-      if (!t) return;
-      t.textContent = msg;
-      t.className = 'no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-2xl pointer-events-none transition-all duration-300 opacity-100 translate-y-0 ' +
-        (type === 'error' ? 'bg-rose-600' : (type === 'success' ? 'bg-emerald-600' : 'bg-slate-900'));
-      setTimeout(() => {
-        t.className = t.className.replace('opacity-100 translate-y-0', 'opacity-0 translate-y-3');
-      }, 2500);
-    }
-  </script>
+        // 페이지 로드 시 첫 번째 문제 자동 생성
+        window.onload = function() {
+            generateNewWorksheet();
+        };
+    </script>
 </body>
 </html>
