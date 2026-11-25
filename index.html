@@ -3,40 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>초등학교 1학년 맞춤형 스도쿠 학습지</title>
+    <title>스도쿠 학습지</title>
     <!-- Tailwind CSS 로드 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 가독성이 좋고 친근한 느낌의 Noto Sans KR 폰트 로드 -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #f3f4f6;
-            color: #1f2937;
         }
 
-        /* 스도쿠 9x9 그리드 스타일 */
+        /* 메인 스도쿠 9x9 그리드 스타일 */
         .sudoku-grid {
             display: grid;
             grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
             border: 3px solid #1e293b;
             background-color: #ffffff;
-            width: 100%;
-            max-width: 460px;
             aspect-ratio: 1 / 1;
-            margin: 0 auto;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        /* 정답용 미니 그리드 */
+        /* 정답용 미니 그리드 (완벽한 1:1 비율 유지) */
         .sudoku-grid-mini {
             display: grid;
             grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
             border: 2px solid #334155;
             background-color: #ffffff;
-            width: 100%;
-            max-width: 240px;
-            aspect-ratio: 1 / 1;
+            width: 240px;
+            height: 240px;
+            flex-shrink: 0;
             margin: 0 auto;
         }
 
@@ -52,30 +48,24 @@
         }
 
         .sudoku-grid .sudoku-cell {
-            font-size: 1.5rem;
+            font-size: clamp(1.1rem, 3.2vw, 1.65rem);
         }
 
         .sudoku-grid-mini .sudoku-cell {
-            font-size: 0.85rem;
+            font-size: 0.78rem;
         }
 
-        /* 3x3 박스 굵은 선 처리 (세로선) */
+        /* 3x3 박스 구분선 (세로 굵은 선) */
         .sudoku-cell:nth-child(3n) {
-            border-right: 3px solid #1e293b;
-        }
-        .sudoku-grid-mini .sudoku-cell:nth-child(3n) {
-            border-right: 2px solid #334155;
+            border-right: 2.5px solid #1e293b;
         }
         .sudoku-cell:nth-child(9n) {
             border-right: none;
         }
 
-        /* 3x3 박스 굵은 선 처리 (가로선) */
+        /* 3x3 박스 구분선 (가로 굵은 선) */
         .sudoku-row-border-bottom {
-            border-bottom: 3px solid #1e293b !important;
-        }
-        .sudoku-grid-mini .sudoku-row-border-bottom {
-            border-bottom: 2px solid #334155 !important;
+            border-bottom: 2.5px solid #1e293b !important;
         }
         .sudoku-row-last {
             border-bottom: none !important;
@@ -88,12 +78,16 @@
             font-weight: 900;
         }
 
-        /* 인쇄 및 PDF 저장 전용 스타일 */
+        /* 인쇄 및 PDF 출력 전용 스타일 */
         @media print {
+            @page {
+                size: A4 portrait;
+                margin: 12mm;
+            }
             body {
                 background-color: #ffffff !important;
-                margin: 0;
-                padding: 0;
+                padding: 0 !important;
+                margin: 0 !important;
             }
             .no-print {
                 display: none !important;
@@ -101,19 +95,15 @@
             .print-container {
                 box-shadow: none !important;
                 border: none !important;
-                margin: 0 !important;
-                padding: 10mm !important;
                 max-width: 100% !important;
                 width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }
-            /* 배경색 인쇄 강제 적용 */
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            @page {
-                size: A4 portrait;
-                margin: 0;
+            .answer-highlight {
+                background-color: #fef2f2 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
     </style>
@@ -121,15 +111,32 @@
 <body class="min-h-screen flex flex-col items-center py-6 px-4">
 
     <!-- 상단 컨트롤 패널 (인쇄 시 숨김) -->
-    <div class="no-print w-full max-w-2xl bg-white rounded-2xl shadow-md p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 border border-gray-200">
-        <div class="flex items-center gap-2">
-            <span class="text-2xl">🧩</span>
-            <div>
-                <h1 class="font-bold text-gray-800 text-lg">1학년 스도쿠 PDF 생성기</h1>
-                <p class="text-xs text-gray-500">버튼을 눌러 새 문제를 만들거나 PDF로 저장하세요.</p>
+    <div class="no-print w-full max-w-2xl bg-white rounded-2xl shadow-md p-4 mb-6 flex flex-col gap-4 border border-gray-200">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🧩</span>
+                <div>
+                    <h1 class="font-bold text-gray-800 text-lg">스도쿠 학습지 PDF 생성기</h1>
+                    <p class="text-xs text-gray-500">난이도와 정답 표시 여부를 선택한 뒤 인쇄하거나 PDF로 저장하세요.</p>
+                </div>
+            </div>
+            <!-- 난이도 선택 드롭다운 -->
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <label for="difficultySelect" class="text-xs font-bold text-gray-700 whitespace-nowrap">난이도:</label>
+                <select id="difficultySelect" onchange="generateNewWorksheet()" class="w-full sm:w-auto bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-2 font-semibold cursor-pointer">
+                    <option value="1" selected>1. Very easy</option>
+                    <option value="2">2. Easy</option>
+                    <option value="3">3. Middle</option>
+                    <option value="4">4. Hard</option>
+                    <option value="5">5. Very hard</option>
+                </select>
             </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+
+        <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-gray-100">
+            <button id="toggleAnswerBtn" onclick="toggleAnswer()" class="flex-1 sm:flex-none bg-slate-600 hover:bg-slate-700 text-white font-bold py-2.5 px-4 rounded-xl shadow transition duration-150 flex items-center justify-center gap-1.5 text-sm cursor-pointer">
+                <span id="toggleAnswerIcon">🙈</span> <span id="toggleAnswerText">정답 가리기</span>
+            </button>
             <button onclick="generateNewWorksheet()" class="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-4 rounded-xl shadow transition duration-150 flex items-center justify-center gap-1.5 text-sm cursor-pointer">
                 <span>🔄</span> 새 문제 만들기
             </button>
@@ -143,7 +150,7 @@
     <div id="infoBanner" class="no-print w-full max-w-2xl bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-xl mb-6 text-sm flex items-start gap-2.5">
         <span class="text-lg leading-none">💡</span>
         <div>
-            <strong>PDF 저장 방법:</strong> 위쪽의 파란색 <b>[PDF 저장 / 인쇄]</b> 버튼을 누른 뒤, 인쇄 창에서 대상을 <b>'PDF로 저장'</b>으로 선택하시면 A4 용지 크기의 깔끔한 학습지 파일이 만들어집니다.
+            <strong>PDF 저장 방법:</strong> <b>[정답 가리기]</b>를 누른 상태에서 인쇄하면 정답이 없는 문제지만 깔끔하게 출력됩니다. 인쇄 창에서 대상을 <b>'PDF로 저장'</b>으로 선택해 주세요.
         </div>
     </div>
 
@@ -153,8 +160,8 @@
         <!-- 학습지 헤더 -->
         <div class="border-b-2 border-gray-800 pb-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
             <div>
-                <span class="inline-block bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full mb-1">초등 1학년 두뇌 트레이닝</span>
-                <h2 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">재미있는 9×9 숫자 스도쿠</h2>
+                <span id="difficultyBadge" class="inline-block bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full mb-1">난이도: 1. Very easy</span>
+                <h2 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">스도쿠 학습지</h2>
             </div>
             <div class="flex gap-4 text-sm font-medium text-gray-700 w-full sm:w-auto justify-end">
                 <div class="border-b border-gray-400 pb-1 w-28">날짜: &nbsp;&nbsp;&nbsp;&nbsp;월 &nbsp;&nbsp;&nbsp;&nbsp;일</div>
@@ -163,26 +170,24 @@
         </div>
 
         <!-- 규칙 설명 박스 -->
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 text-sm text-gray-700">
-            <p class="font-bold text-gray-900 mb-1.5 flex items-center gap-1.5">
-                <span>📌</span> 약속을 지켜서 빈칸에 1부터 9까지 숫자를 써넣어요!
+        <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 mb-6 text-xs sm:text-sm text-gray-700 flex items-center gap-3">
+            <span class="text-xl flex-shrink-0">✏️</span>
+            <p class="leading-relaxed">
+                <strong>스도쿠 규칙:</strong> 가로줄, 세로줄, 그리고 굵은 선으로 나뉜 작은 네모(3×3) 안에 <strong>1부터 9까지</strong>의 숫자가 겹치지 않게 한 번씩만 들어가도록 빈칸을 채워보세요!
             </p>
-            <ul class="list-disc list-inside space-y-1 text-xs sm:text-sm text-gray-600">
-                <li><strong>가로줄</strong>(9칸)에 1~9 숫자가 한 번씩만 들어가야 해요.</li>
-                <li><strong>세로줄</strong>(9칸)에도 1~9 숫자가 한 번씩만 들어가야 해요.</li>
-                <li>굵은 선으로 나뉜 <strong>작은 네모(3×3)</strong> 안에도 1~9 숫자가 한 번씩만 들어가야 해요.</li>
-            </ul>
         </div>
 
-        <!-- 메인 문제 그리드 -->
-        <div class="mb-8">
-            <div id="puzzleGrid" class="sudoku-grid">
-                <!-- 자바스크립트로 81칸 생성 -->
+        <!-- 메인 문제 그리드 영역 -->
+        <div class="flex justify-center my-6">
+            <div class="w-full max-w-[440px] aspect-square">
+                <div id="puzzleGrid" class="sudoku-grid w-full h-full">
+                    <!-- 자바스크립트로 81칸 문제 생성 -->
+                </div>
             </div>
         </div>
 
-        <!-- 하단 구분선 및 정답 영역 -->
-        <div class="border-t-2 border-dashed border-gray-300 pt-5 mt-4">
+        <!-- 하단 구분선 및 정답 영역 (정답 가리기 토글 대상) -->
+        <div id="answerSection" class="border-t-2 border-dashed border-gray-300 pt-5 mt-4">
             <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
                 <div class="text-center sm:text-left max-w-xs">
                     <span class="inline-block bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded mb-1">부모님 / 선생님 확인용</span>
@@ -192,8 +197,8 @@
                     </p>
                 </div>
                 
-                <!-- 미니 정답 그리드 -->
-                <div>
+                <!-- 미니 정답 그리드 (240px x 240px 고정 1:1 비율) -->
+                <div class="flex-shrink-0">
                     <div id="solutionGrid" class="sudoku-grid-mini">
                         <!-- 자바스크립트로 81칸 정답 생성 -->
                     </div>
@@ -204,12 +209,21 @@
     </div>
 
     <script>
+        let isAnswerVisible = true;
+
+        // 난이도별 설정 정보 (빈칸 개수 및 뱃지 텍스트)
+        const DIFFICULTY_CONFIG = {
+            '1': { label: '1. Very easy', blanks: 14 },
+            '2': { label: '2. Easy', blanks: 26 },
+            '3': { label: '3. Middle', blanks: 38 },
+            '4': { label: '4. Hard', blanks: 48 },
+            '5': { label: '5. Very hard', blanks: 56 }
+        };
+
         /**
          * 유효한 9x9 스도쿠 완성판을 랜덤으로 생성하는 함수
-         * 기본 패턴에 숫자 치환 및 행/열 셔플을 적용하여 항상 규칙에 맞는 새 보드를 생성합니다.
          */
         function generateSolvedBoard() {
-            // 기본 유효 스도쿠 시드 보드
             const base = [
                 [1, 2, 3, 4, 5, 6, 7, 8, 9],
                 [4, 5, 6, 7, 8, 9, 1, 2, 3],
@@ -222,7 +236,7 @@
                 [9, 1, 2, 3, 4, 5, 6, 7, 8]
             ];
 
-            // 1~9 숫자 랜덤 매핑 생성
+            // 1~9 숫자 랜덤 매핑
             const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
             shuffleArray(nums);
             const numMap = {};
@@ -230,10 +244,9 @@
                 numMap[i + 1] = nums[i];
             }
 
-            // 숫자 치환 적용
             let board = base.map(row => row.map(val => numMap[val]));
 
-            // 3x3 밴드(가로 3줄 묶음) 내에서의 행 셔플
+            // 3x3 밴드 내부 행 셔플
             for (let band = 0; band < 3; band++) {
                 const rows = [band * 3, band * 3 + 1, band * 3 + 2];
                 shuffleArray(rows);
@@ -243,7 +256,7 @@
                 }
             }
 
-            // 3x3 스택(세로 3줄 묶음) 내에서의 열 셔플
+            // 3x3 스택 내부 열 셔플
             for (let stack = 0; stack < 3; stack++) {
                 const cols = [stack * 3, stack * 3 + 1, stack * 3 + 2];
                 shuffleArray(cols);
@@ -255,7 +268,27 @@
                 }
             }
 
-            return board;
+            // 밴드(3행 단위) 전체 순서 셔플
+            const bandOrder = [0, 1, 2];
+            shuffleArray(bandOrder);
+            const bandSwappedBoard = [];
+            for (let b of bandOrder) {
+                bandSwappedBoard.push([...board[b * 3]], [...board[b * 3 + 1]], [...board[b * 3 + 2]]);
+            }
+            board = bandSwappedBoard;
+
+            // 스택(3열 단위) 전체 순서 셔플
+            const stackOrder = [0, 1, 2];
+            shuffleArray(stackOrder);
+            const finalBoard = board.map(row => {
+                const newRow = [];
+                for (let s of stackOrder) {
+                    newRow.push(row[s * 3], row[s * 3 + 1], row[s * 3 + 2]);
+                }
+                return newRow;
+            });
+
+            return finalBoard;
         }
 
         /**
@@ -269,35 +302,62 @@
         }
 
         /**
-         * 초등학교 1학년 난이도(각 가로줄당 빈칸 1~2개, 총 12개 내외)로 문제를 생성하는 함수
-         * 아이들이 쉽게 풀 수 있도록 한 줄이나 한 박스에 빈칸이 몰리지 않게 배분합니다.
+         * 선택된 난이도에 맞춰 빈칸을 생성하는 함수
          */
-        function createGrade1Puzzle(solvedBoard) {
+        function createPuzzleByDifficulty(solvedBoard, difficultyKey) {
+            const config = DIFFICULTY_CONFIG[difficultyKey] || DIFFICULTY_CONFIG['1'];
+            const targetBlanks = config.blanks;
             const puzzle = solvedBoard.map(row => [...row]);
             const isBlank = Array.from({ length: 9 }, () => Array(9).fill(false));
 
-            // 1단계: 모든 가로줄(0~8행)에 최소 1개씩 빈칸 만들기 (세로줄 중복 최소화)
-            const colOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-            shuffleArray(colOrder);
-
-            for (let r = 0; r < 9; r++) {
-                const c = colOrder[r];
-                puzzle[r][c] = 0;
-                isBlank[r][c] = true;
-            }
-
-            // 2단계: 3개의 줄을 무작위로 골라 빈칸 1개씩 추가 (총 12개의 빈칸으로 성취감 극대화)
-            const extraRows = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-            shuffleArray(extraRows);
-            for (let i = 0; i < 3; i++) {
-                const r = extraRows[i];
-                let c = Math.floor(Math.random() * 9);
-                // 이미 빈칸인 곳은 피함
-                while (isBlank[r][c]) {
-                    c = (c + 1) % 9;
+            if (difficultyKey === '1') {
+                const colOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+                shuffleArray(colOrder);
+                for (let r = 0; r < 9; r++) {
+                    const c = colOrder[r];
+                    puzzle[r][c] = 0;
+                    isBlank[r][c] = true;
                 }
-                puzzle[r][c] = 0;
-                isBlank[r][c] = true;
+                let remaining = targetBlanks - 9;
+                const extraRows = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+                shuffleArray(extraRows);
+                for (let i = 0; i < remaining; i++) {
+                    const r = extraRows[i % 9];
+                    let c = Math.floor(Math.random() * 9);
+                    while (isBlank[r][c]) {
+                        c = (c + 1) % 9;
+                    }
+                    puzzle[r][c] = 0;
+                    isBlank[r][c] = true;
+                }
+            } else {
+                const positions = [];
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        positions.push([r, c]);
+                    }
+                }
+                shuffleArray(positions);
+
+                const rowCounts = Array(9).fill(9);
+                const colCounts = Array(9).fill(9);
+                const boxCounts = Array(9).fill(9);
+                let removed = 0;
+
+                const minKeep = difficultyKey === '2' ? 4 : difficultyKey === '3' ? 3 : difficultyKey === '4' ? 2 : 1;
+
+                for (const [r, c] of positions) {
+                    if (removed >= targetBlanks) break;
+                    const boxIdx = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+                    if (rowCounts[r] > minKeep && colCounts[c] > minKeep && boxCounts[boxIdx] > minKeep) {
+                        puzzle[r][c] = 0;
+                        isBlank[r][c] = true;
+                        rowCounts[r]--;
+                        colCounts[c]--;
+                        boxCounts[boxIdx]--;
+                        removed++;
+                    }
+                }
             }
 
             return { puzzle, isBlank };
@@ -309,6 +369,11 @@
         function renderGrids(solvedBoard, puzzleBoard, isBlank) {
             const puzzleContainer = document.getElementById('puzzleGrid');
             const solutionContainer = document.getElementById('solutionGrid');
+
+            if (!puzzleContainer || !solutionContainer) {
+                console.error('스도쿠 그리드 컨테이너 요소를 찾을 수 없습니다.');
+                return;
+            }
 
             puzzleContainer.innerHTML = '';
             solutionContainer.innerHTML = '';
@@ -330,7 +395,6 @@
                     if (r === 2 || r === 5) sCell.classList.add('sudoku-row-border-bottom');
                     if (r === 8) sCell.classList.add('sudoku-row-last');
                     
-                    // 빈칸이었던 곳은 빨간색으로 강조 표시
                     if (isBlank[r][c]) {
                         sCell.classList.add('answer-highlight');
                     }
@@ -341,11 +405,41 @@
         }
 
         /**
+         * 정답 영역 보이기 / 가리기 토글 함수
+         */
+        function toggleAnswer() {
+            isAnswerVisible = !isAnswerVisible;
+            const answerSection = document.getElementById('answerSection');
+            const toggleIcon = document.getElementById('toggleAnswerIcon');
+            const toggleText = document.getElementById('toggleAnswerText');
+            const toggleBtn = document.getElementById('toggleAnswerBtn');
+
+            if (isAnswerVisible) {
+                answerSection.classList.remove('hidden');
+                toggleIcon.textContent = '🙈';
+                toggleText.textContent = '정답 가리기';
+                toggleBtn.classList.replace('bg-emerald-600', 'bg-slate-600');
+                toggleBtn.classList.replace('hover:bg-emerald-700', 'hover:bg-slate-700');
+            } else {
+                answerSection.classList.add('hidden');
+                toggleIcon.textContent = '👁️';
+                toggleText.textContent = '정답 보이기';
+                toggleBtn.classList.replace('bg-slate-600', 'bg-emerald-600');
+                toggleBtn.classList.replace('hover:bg-slate-700', 'hover:bg-emerald-700');
+            }
+        }
+
+        /**
          * 새 학습지 생성 실행 함수
          */
         function generateNewWorksheet() {
+            const difficultyKey = document.getElementById('difficultySelect').value;
+            const config = DIFFICULTY_CONFIG[difficultyKey] || DIFFICULTY_CONFIG['1'];
+            
+            document.getElementById('difficultyBadge').textContent = `난이도: ${config.label}`;
+
             const solved = generateSolvedBoard();
-            const { puzzle, isBlank } = createGrade1Puzzle(solved);
+            const { puzzle, isBlank } = createPuzzleByDifficulty(solved, difficultyKey);
             renderGrids(solved, puzzle, isBlank);
         }
 
